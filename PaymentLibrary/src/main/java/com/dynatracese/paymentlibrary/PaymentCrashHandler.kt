@@ -1,3 +1,5 @@
+package com.dynatracese.paymentlibrary
+
 import android.content.Context
 import android.util.Log
 import java.io.File
@@ -6,14 +8,22 @@ import java.io.PrintWriter
 import java.io.StringWriter
 import java.util.*
 import kotlin.system.exitProcess
+import com.dynatrace.openkit.DynatraceOpenKitBuilder
+import com.dynatrace.openkit.api.OpenKit
+import com.dynatrace.openkit.api.Session
+import com.dynatrace.openkit.api.Action
 
 class PaymentCrashHandler(private val context: Context, private val originalHandler: Thread.UncaughtExceptionHandler?) : Thread.UncaughtExceptionHandler {
 
     companion object {
-        fun register(context: Context) {
+        private lateinit var crashSession: Session
+
+        fun register(context: Context, session: Session) {
+            crashSession = session
             val originalHandler = Thread.getDefaultUncaughtExceptionHandler()
             if (originalHandler !is PaymentCrashHandler) {
                 Thread.setDefaultUncaughtExceptionHandler(PaymentCrashHandler(context, originalHandler))
+                Log.i("registered status", "register: registered successfully")
             }
         }
     }
@@ -24,6 +34,17 @@ class PaymentCrashHandler(private val context: Context, private val originalHand
         val pw = PrintWriter(sw)
         throwable.printStackTrace(pw)
         val stackTrace = sw.toString()
+        val description = throwable.message
+        Log.i("test","uncaughtException: This is a log from the PaymentCrashHandler....")
+        Log.i("test","uncaughtException: This is a log from the PaymentCrashHandler....")
+        Log.i("test","uncaughtException: This is a log from the PaymentCrashHandler....")
+        Log.i("test","uncaughtException: This is a log from the PaymentCrashHandler....")
+        Log.i("test","uncaughtException: This is a log from the PaymentCrashHandler....")
+        Log.i("test","uncaughtException: This is a log from the PaymentCrashHandler....")
+
+
+//        PaymentCrashHandler.crashSession.reportCrash(throwable.message, "Deu ruim", stackTrace)
+        crashSession.reportCrash(throwable.javaClass.simpleName, description, stackTrace)
 
         val crashInfo = "Timestamp: ${Date()}\n" +
                 "Device: ${android.os.Build.MODEL}\n" +

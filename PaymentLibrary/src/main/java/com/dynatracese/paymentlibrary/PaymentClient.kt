@@ -25,6 +25,8 @@ import com.dynatrace.openkit.api.OpenKit
 //import com.dynatrace.openkit.core.DynatraceOpenKitBuilder
 import com.dynatrace.openkit.api.Session
 import com.dynatrace.openkit.api.Action
+import com.dynatracese.paymentlibrary.PaymentCrashHandler
+
 
 // Interface para callbacks de pagamento
 interface PaymentCallback {
@@ -39,17 +41,17 @@ interface CancellationCallback {
 }
 
 // A classe agora recebe a URL base como parâmetro do construtor
-class PaymentClient(private val baseUrl: String, private val context: Context) {
+class PaymentClient(private val baseUrl: String, private val context: Context, crashStatus: Boolean) {
 
     private val paymentService: PaymentService?
     private lateinit var session: Session
+    private var crashStatus: Boolean = crashStatus
 
     init {
         // Replace with your Dynatrace tenant URL and application ID
         val tenantUrl = "https://bf78240axh.bf.dynatrace.com/mbeacon"
-        val applicationId = ""
+        val applicationId = "b29101f0-9a10-44bb-9ae8-f024f0ec657a"
         val deviceId = 12323423423 // A unique identifier for the device
-
         val openKit = DynatraceOpenKitBuilder(tenantUrl, applicationId, deviceId)
             .build()
             .apply {
@@ -57,12 +59,9 @@ class PaymentClient(private val baseUrl: String, private val context: Context) {
                 waitForInitCompletion()
             }
         session = openKit.createSession("user@example.com")
-        if (Random.nextInt(100) < 0) {
-            // Log the event for debugging purposes
-            Log.e("PaymentLibrary", "Simulating a crash for testing purposes.")
-            // Throw an unhandled exception to cause a crash
-            throw NullPointerException("Simulated Payment Library Crash")
-        }
+        PaymentCrashHandler.register(context.applicationContext, session)
+
+
         // Se a URL for "TEST_ONLY", não inicializa o Retrofit
         if (baseUrl != "TEST_ONLY") {
             val retrofit = Retrofit.Builder()
@@ -74,7 +73,6 @@ class PaymentClient(private val baseUrl: String, private val context: Context) {
         } else {
             paymentService = null
         }
-        PaymentCrashHandler.register(context.applicationContext)
 
         Log.d("PaymentLibrary", "PaymentLibrary initialized successfully.")
     }
@@ -94,40 +92,61 @@ class PaymentClient(private val baseUrl: String, private val context: Context) {
         callback: PaymentCallback
     ) {
         val action = session.enterAction("Payment Process")
-        Log.i("PaymentClient", "Sending payment")
-        withContext(Dispatchers.IO) {
-            if (baseUrl == "TEST_ONLY") {
-                // Simulação de pagamento para o modo de teste
-                if (amount > 0) {
-                    val transactionId = UUID.randomUUID().toString()
-                    callback.onPaymentSuccess(transactionId)
-                } else {
-                    callback.onPaymentFailure("Simulated error: Amount must be positive.")
-                }
-            } else {
-                // Lógica de chamada real para o backend
-                try {
-                    val paymentRequest = PaymentRequest(amount, creditCardNumber, vendorName, vendorId)
-                    val response = paymentService?.receivePayment(paymentRequest)
+        Log.i("receivePayment", "Starting send payment")
+        executePayment(amount, creditCardNumber, vendorName, vendorId, callback)
+        action.leaveAction()
+        Log.i("receivePayment", "Finished Sending payment")
+    }
 
-                    if (response != null && response.isSuccessful) {
-                        val transactionId = response.body()?.transactionId
-                        if (transactionId != null) {
-                            callback.onPaymentSuccess(transactionId)
-                        } else {
-                            callback.onPaymentFailure("Transaction ID not found in response.")
-                        }
+    private suspend fun executePayment(
+        amount: Double,
+        creditCardNumber: String,
+        vendorName: String,
+        vendorId: String,
+        callback: PaymentCallback
+    ){
+        Log.i("executePayment", "Starting send payment")
+        if (crashStatus){//(Random.nextInt(100) < 50) {
+            // Log the event for debugging purposes
+            Log.e("PaymentLibrary", "Simulating a crash for testing purposes.")
+            // Throw an unhandled exception to cause a crash
+            throw NullPointerException("Simulated Payment Library Crash")
+        }
+        else{
+            withContext(Dispatchers.IO) {
+                if (baseUrl == "TEST_ONLY") {
+                    // Simulação de pagamento para o modo de teste
+                    if (amount > 0) {
+                        val transactionId = UUID.randomUUID().toString()
+                        callback.onPaymentSuccess(transactionId)
                     } else {
-                        callback.onPaymentFailure("Payment failed with code: ${response?.code()}")
+                        callback.onPaymentFailure("Simulated error: Amount must be positive.")
                     }
-                } catch (e: Exception) {
-                    Log.e("PaymentClient", "Error receiving payment", e)
-                    callback.onPaymentFailure(e.message ?: "Unknown error")
+                } else {
+                    // Lógica de chamada real para o backend
+                    try {
+                        val paymentRequest = PaymentRequest(amount, creditCardNumber, vendorName, vendorId)
+                        val response = paymentService?.receivePayment(paymentRequest)
+
+                        if (response != null && response.isSuccessful) {
+                            val transactionId = response.body()?.transactionId
+                            if (transactionId != null) {
+                                callback.onPaymentSuccess(transactionId)
+                            } else {
+                                callback.onPaymentFailure("Transaction ID not found in response.")
+                            }
+                        } else {
+                            callback.onPaymentFailure("Payment failed with code: ${response?.code()}")
+                        }
+                    } catch (e: Exception) {
+                        Log.e("PaymentClient", "Error receiving payment", e)
+                        callback.onPaymentFailure(e.message ?: "Unknown error")
+                    }
                 }
             }
         }
-        action.leaveAction()
-        Log.i("PaymentClient", "Finished Sending payment")
+
+        Log.i("executePayment", "Finished Sending payment")
     }
 
     /**
