@@ -1,0 +1,414 @@
+{
+  "ABIRoot": {
+    "kind": "Root",
+    "name": "PaymentLibrary",
+    "printedName": "PaymentLibrary",
+    "children": [
+      {
+        "kind": "Import",
+        "name": "Foundation",
+        "printedName": "Foundation",
+        "declKind": "Import",
+        "moduleName": "PaymentLibrary",
+        "declAttributes": [
+          "RawDocComment"
+        ]
+      },
+      {
+        "kind": "Import",
+        "name": "os.log",
+        "printedName": "os.log",
+        "declKind": "Import",
+        "moduleName": "PaymentLibrary"
+      },
+      {
+        "kind": "Import",
+        "name": "UIKit",
+        "printedName": "UIKit",
+        "declKind": "Import",
+        "moduleName": "PaymentLibrary"
+      },
+      {
+        "kind": "TypeDecl",
+        "name": "PaymentCallback",
+        "printedName": "PaymentCallback",
+        "children": [
+          {
+            "kind": "Function",
+            "name": "onPaymentSuccess",
+            "printedName": "onPaymentSuccess(transactionId:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Void",
+                "printedName": "()"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "s:14PaymentLibrary0A8CallbackP02onA7Success13transactionIdySS_tF",
+            "mangledName": "$s14PaymentLibrary0A8CallbackP02onA7Success13transactionIdySS_tF",
+            "moduleName": "PaymentLibrary",
+            "genericSig": "<τ_0_0 where τ_0_0 : PaymentLibrary.PaymentCallback>",
+            "sugared_genericSig": "<Self where Self : PaymentLibrary.PaymentCallback>",
+            "protocolReq": true,
+            "reqNewWitnessTableEntry": true,
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "onPaymentFailure",
+            "printedName": "onPaymentFailure(error:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Void",
+                "printedName": "()"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "s:14PaymentLibrary0A8CallbackP02onA7Failure5errorySS_tF",
+            "mangledName": "$s14PaymentLibrary0A8CallbackP02onA7Failure5errorySS_tF",
+            "moduleName": "PaymentLibrary",
+            "genericSig": "<τ_0_0 where τ_0_0 : PaymentLibrary.PaymentCallback>",
+            "sugared_genericSig": "<Self where Self : PaymentLibrary.PaymentCallback>",
+            "protocolReq": true,
+            "reqNewWitnessTableEntry": true,
+            "funcSelfKind": "NonMutating"
+          }
+        ],
+        "declKind": "Protocol",
+        "usr": "s:14PaymentLibrary0A8CallbackP",
+        "mangledName": "$s14PaymentLibrary0A8CallbackP",
+        "moduleName": "PaymentLibrary",
+        "genericSig": "<τ_0_0 : AnyObject>",
+        "sugared_genericSig": "<Self : AnyObject>",
+        "declAttributes": [
+          "AccessControl",
+          "RawDocComment"
+        ],
+        "conformances": [
+          {
+            "kind": "Conformance",
+            "name": "Escapable",
+            "printedName": "Escapable",
+            "usr": "s:s9EscapableP",
+            "mangledName": "$ss9EscapableP"
+          },
+          {
+            "kind": "Conformance",
+            "name": "Copyable",
+            "printedName": "Copyable",
+            "usr": "s:s8CopyableP",
+            "mangledName": "$ss8CopyableP"
+          }
+        ]
+      },
+      {
+        "kind": "TypeDecl",
+        "name": "CancellationCallback",
+        "printedName": "CancellationCallback",
+        "children": [
+          {
+            "kind": "Function",
+            "name": "onCancellationSuccess",
+            "printedName": "onCancellationSuccess()",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Void",
+                "printedName": "()"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "s:14PaymentLibrary20CancellationCallbackP02onC7SuccessyyF",
+            "mangledName": "$s14PaymentLibrary20CancellationCallbackP02onC7SuccessyyF",
+            "moduleName": "PaymentLibrary",
+            "genericSig": "<τ_0_0 where τ_0_0 : PaymentLibrary.CancellationCallback>",
+            "sugared_genericSig": "<Self where Self : PaymentLibrary.CancellationCallback>",
+            "protocolReq": true,
+            "reqNewWitnessTableEntry": true,
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "onCancellationFailure",
+            "printedName": "onCancellationFailure(error:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Void",
+                "printedName": "()"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "s:14PaymentLibrary20CancellationCallbackP02onC7Failure5errorySS_tF",
+            "mangledName": "$s14PaymentLibrary20CancellationCallbackP02onC7Failure5errorySS_tF",
+            "moduleName": "PaymentLibrary",
+            "genericSig": "<τ_0_0 where τ_0_0 : PaymentLibrary.CancellationCallback>",
+            "sugared_genericSig": "<Self where Self : PaymentLibrary.CancellationCallback>",
+            "protocolReq": true,
+            "reqNewWitnessTableEntry": true,
+            "funcSelfKind": "NonMutating"
+          }
+        ],
+        "declKind": "Protocol",
+        "usr": "s:14PaymentLibrary20CancellationCallbackP",
+        "mangledName": "$s14PaymentLibrary20CancellationCallbackP",
+        "moduleName": "PaymentLibrary",
+        "genericSig": "<τ_0_0 : AnyObject>",
+        "sugared_genericSig": "<Self : AnyObject>",
+        "declAttributes": [
+          "AccessControl"
+        ],
+        "conformances": [
+          {
+            "kind": "Conformance",
+            "name": "Escapable",
+            "printedName": "Escapable",
+            "usr": "s:s9EscapableP",
+            "mangledName": "$ss9EscapableP"
+          },
+          {
+            "kind": "Conformance",
+            "name": "Copyable",
+            "printedName": "Copyable",
+            "usr": "s:s8CopyableP",
+            "mangledName": "$ss8CopyableP"
+          }
+        ]
+      },
+      {
+        "kind": "TypeDecl",
+        "name": "PaymentClient",
+        "printedName": "PaymentClient",
+        "children": [
+          {
+            "kind": "Var",
+            "name": "shared",
+            "printedName": "shared",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "PaymentClient",
+                "printedName": "PaymentLibrary.PaymentClient",
+                "usr": "s:14PaymentLibrary0A6ClientC"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "s:14PaymentLibrary0A6ClientC6sharedACvpZ",
+            "mangledName": "$s14PaymentLibrary0A6ClientC6sharedACvpZ",
+            "moduleName": "PaymentLibrary",
+            "static": true,
+            "declAttributes": [
+              "Final",
+              "AccessControl",
+              "RawDocComment"
+            ],
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "PaymentClient",
+                    "printedName": "PaymentLibrary.PaymentClient",
+                    "usr": "s:14PaymentLibrary0A6ClientC"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:14PaymentLibrary0A6ClientC6sharedACvgZ",
+                "mangledName": "$s14PaymentLibrary0A6ClientC6sharedACvgZ",
+                "moduleName": "PaymentLibrary",
+                "static": true,
+                "declAttributes": [
+                  "Final"
+                ],
+                "accessorKind": "get"
+              }
+            ]
+          },
+          {
+            "kind": "Function",
+            "name": "getInstance",
+            "printedName": "getInstance(baseUrl:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "PaymentClient",
+                "printedName": "PaymentLibrary.PaymentClient",
+                "usr": "s:14PaymentLibrary0A6ClientC"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "s:14PaymentLibrary0A6ClientC11getInstance7baseUrlACSS_tFZ",
+            "mangledName": "$s14PaymentLibrary0A6ClientC11getInstance7baseUrlACSS_tFZ",
+            "moduleName": "PaymentLibrary",
+            "static": true,
+            "declAttributes": [
+              "Final",
+              "AccessControl",
+              "DiscardableResult",
+              "RawDocComment"
+            ],
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "receivePayment",
+            "printedName": "receivePayment(amount:creditCardNumber:vendorName:vendorId:callback:crashStatus:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Void",
+                "printedName": "()"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "Double",
+                "printedName": "Swift.Double",
+                "usr": "s:Sd"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "PaymentCallback",
+                "printedName": "any PaymentLibrary.PaymentCallback",
+                "usr": "s:14PaymentLibrary0A8CallbackP"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "Bool",
+                "printedName": "Swift.Bool",
+                "usr": "s:Sb"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "s:14PaymentLibrary0A6ClientC07receiveA06amount16creditCardNumber10vendorName0I2Id8callback11crashStatusySd_S3SAA0A8Callback_pSbtF",
+            "mangledName": "$s14PaymentLibrary0A6ClientC07receiveA06amount16creditCardNumber10vendorName0I2Id8callback11crashStatusySd_S3SAA0A8Callback_pSbtF",
+            "moduleName": "PaymentLibrary",
+            "declAttributes": [
+              "Final",
+              "AccessControl",
+              "RawDocComment"
+            ],
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "cancelPayment",
+            "printedName": "cancelPayment(transactionId:callback:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Void",
+                "printedName": "()"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "CancellationCallback",
+                "printedName": "any PaymentLibrary.CancellationCallback",
+                "usr": "s:14PaymentLibrary20CancellationCallbackP"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "s:14PaymentLibrary0A6ClientC06cancelA013transactionId8callbackySS_AA20CancellationCallback_ptF",
+            "mangledName": "$s14PaymentLibrary0A6ClientC06cancelA013transactionId8callbackySS_AA20CancellationCallback_ptF",
+            "moduleName": "PaymentLibrary",
+            "declAttributes": [
+              "Final",
+              "AccessControl"
+            ],
+            "funcSelfKind": "NonMutating"
+          }
+        ],
+        "declKind": "Class",
+        "usr": "s:14PaymentLibrary0A6ClientC",
+        "mangledName": "$s14PaymentLibrary0A6ClientC",
+        "moduleName": "PaymentLibrary",
+        "declAttributes": [
+          "Final",
+          "AccessControl",
+          "RawDocComment"
+        ],
+        "hasMissingDesignatedInitializers": true,
+        "conformances": [
+          {
+            "kind": "Conformance",
+            "name": "Copyable",
+            "printedName": "Copyable",
+            "usr": "s:s8CopyableP",
+            "mangledName": "$ss8CopyableP"
+          },
+          {
+            "kind": "Conformance",
+            "name": "Escapable",
+            "printedName": "Escapable",
+            "usr": "s:s9EscapableP",
+            "mangledName": "$ss9EscapableP"
+          }
+        ]
+      },
+      {
+        "kind": "Import",
+        "name": "Foundation",
+        "printedName": "Foundation",
+        "declKind": "Import",
+        "moduleName": "PaymentLibrary",
+        "declAttributes": [
+          "RawDocComment"
+        ]
+      }
+    ],
+    "json_format_version": 8
+  },
+  "ConstValues": []
+}

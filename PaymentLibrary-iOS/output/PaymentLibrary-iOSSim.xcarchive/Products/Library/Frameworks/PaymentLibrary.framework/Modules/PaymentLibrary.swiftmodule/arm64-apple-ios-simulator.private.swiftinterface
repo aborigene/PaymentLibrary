@@ -1,0 +1,30 @@
+// swift-interface-format-version: 1.0
+// swift-compiler-version: Apple Swift version 6.1.2 effective-5.10 (swiftlang-6.1.2.1.2 clang-1700.0.13.5)
+// swift-module-flags: -target arm64-apple-ios18.5-simulator -enable-objc-interop -enable-library-evolution -swift-version 5 -enforce-exclusivity=checked -O -enable-experimental-feature DebugDescriptionMacro -enable-bare-slash-regex -module-name PaymentLibrary
+// swift-module-flags-ignorable:  -interface-compiler-version 6.1.2
+import Foundation
+import Swift
+import UIKit
+import _Concurrency
+import _StringProcessing
+import _SwiftConcurrencyShims
+import os.log
+import os
+public protocol PaymentCallback : AnyObject {
+  func onPaymentSuccess(transactionId: Swift.String)
+  func onPaymentFailure(error: Swift.String)
+}
+public protocol CancellationCallback : AnyObject {
+  func onCancellationSuccess()
+  func onCancellationFailure(error: Swift.String)
+}
+@_hasMissingDesignatedInitializers final public class PaymentClient {
+  public static var shared: PaymentLibrary.PaymentClient {
+    get
+  }
+  @discardableResult
+  public static func getInstance(baseUrl: Swift.String) -> PaymentLibrary.PaymentClient
+  final public func receivePayment(amount: Swift.Double, creditCardNumber: Swift.String, vendorName: Swift.String, vendorId: Swift.String, callback: any PaymentLibrary.PaymentCallback, crashStatus: Swift.Bool)
+  final public func cancelPayment(transactionId: Swift.String, callback: any PaymentLibrary.CancellationCallback)
+  @objc deinit
+}
