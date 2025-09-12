@@ -7,8 +7,21 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		091DC6872E71EAB60020EC9B /* BusinessEventsClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 091DC6862E71EAB60020EC9B /* BusinessEventsClient.swift */; };
+		091DC6A42E747B720020EC9B /* CrashReporterKit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 091DC6A32E747B720020EC9B /* CrashReporterKit.swift */; };
+		091DC6AC2E749FAD0020EC9B /* SwiftyBeaverDynatraceLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 091DC6AB2E749FAD0020EC9B /* SwiftyBeaverDynatraceLogger.swift */; };
+		097E95612E96D4850075BB48 /* Base64.swift in Sources */ = {isa = PBXBuildFile; fileRef = 097E95602E96D4850075BB48 /* Base64.swift */; };
+		097E956A2E96D49E0075BB48 /* Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 097E95642E96D49E0075BB48 /* Extensions.swift */; };
+		097E956B2E96D49E0075BB48 /* BaseDestination.swift in Sources */ = {isa = PBXBuildFile; fileRef = 097E95622E96D49E0075BB48 /* BaseDestination.swift */; };
+		097E956C2E96D49E0075BB48 /* FilterValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 097E95672E96D49E0075BB48 /* FilterValidator.swift */; };
+		097E956D2E96D49E0075BB48 /* ConsoleDestination.swift in Sources */ = {isa = PBXBuildFile; fileRef = 097E95632E96D49E0075BB48 /* ConsoleDestination.swift */; };
+		097E956E2E96D49E0075BB48 /* Filter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 097E95662E96D49E0075BB48 /* Filter.swift */; };
+		097E956F2E96D49E0075BB48 /* GoogleCloudDestination.swift in Sources */ = {isa = PBXBuildFile; fileRef = 097E95682E96D49E0075BB48 /* GoogleCloudDestination.swift */; };
+		097E95702E96D49E0075BB48 /* SwiftyBeaver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 097E95692E96D49E0075BB48 /* SwiftyBeaver.swift */; };
+		097E95712E96D49E0075BB48 /* FileDestination.swift in Sources */ = {isa = PBXBuildFile; fileRef = 097E95652E96D49E0075BB48 /* FileDestination.swift */; };
+		097E95752E96EC070075BB48 /* PaymentClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 097E95742E96EC070075BB48 /* PaymentClient.swift */; };
+		097E958F2E9809600075BB48 /* Secrets.xconfig in Resources */ = {isa = PBXBuildFile; fileRef = 097E958E2E9809560075BB48 /* Secrets.xconfig */; };
 		09D55D982E70BA070086F181 /* PaymentLibrary.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 09D55D8C2E70BA050086F181 /* PaymentLibrary.framework */; };
-		09D55E182E71CA9E0086F181 /* PaymentClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09D55E132E71CA9E0086F181 /* PaymentClient.swift */; };
 		09D55E1A2E71CA9E0086F181 /* PaymentLibrary.docc in Sources */ = {isa = PBXBuildFile; fileRef = 09D55E152E71CA9E0086F181 /* PaymentLibrary.docc */; };
 		09D55E1B2E71CA9E0086F181 /* PaymentLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09D55E162E71CA9E0086F181 /* PaymentLibrary.swift */; };
 /* End PBXBuildFile section */
@@ -24,9 +37,22 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		091DC6862E71EAB60020EC9B /* BusinessEventsClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BusinessEventsClient.swift; sourceTree = "<group>"; };
+		091DC6A32E747B720020EC9B /* CrashReporterKit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashReporterKit.swift; sourceTree = "<group>"; };
+		091DC6AB2E749FAD0020EC9B /* SwiftyBeaverDynatraceLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftyBeaverDynatraceLogger.swift; sourceTree = "<group>"; };
+		097E95602E96D4850075BB48 /* Base64.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Base64.swift; sourceTree = "<group>"; };
+		097E95622E96D49E0075BB48 /* BaseDestination.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BaseDestination.swift; sourceTree = "<group>"; };
+		097E95632E96D49E0075BB48 /* ConsoleDestination.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsoleDestination.swift; sourceTree = "<group>"; };
+		097E95642E96D49E0075BB48 /* Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Extensions.swift; sourceTree = "<group>"; };
+		097E95652E96D49E0075BB48 /* FileDestination.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileDestination.swift; sourceTree = "<group>"; };
+		097E95662E96D49E0075BB48 /* Filter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Filter.swift; sourceTree = "<group>"; };
+		097E95672E96D49E0075BB48 /* FilterValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterValidator.swift; sourceTree = "<group>"; };
+		097E95682E96D49E0075BB48 /* GoogleCloudDestination.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleCloudDestination.swift; sourceTree = "<group>"; };
+		097E95692E96D49E0075BB48 /* SwiftyBeaver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftyBeaver.swift; sourceTree = "<group>"; };
+		097E95742E96EC070075BB48 /* PaymentClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentClient.swift; sourceTree = "<group>"; };
+		097E958E2E9809560075BB48 /* Secrets.xconfig */ = {isa = PBXFileReference; lastKnownFileType = text; path = Secrets.xconfig; sourceTree = "<group>"; };
 		09D55D8C2E70BA050086F181 /* PaymentLibrary.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = PaymentLibrary.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		09D55D972E70BA070086F181 /* PaymentLibraryTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PaymentLibraryTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		09D55E132E71CA9E0086F181 /* PaymentClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentClient.swift; sourceTree = "<group>"; };
 		09D55E152E71CA9E0086F181 /* PaymentLibrary.docc */ = {isa = PBXFileReference; lastKnownFileType = folder.documentationcatalog; path = PaymentLibrary.docc; sourceTree = "<group>"; };
 		09D55E162E71CA9E0086F181 /* PaymentLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentLibrary.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -58,9 +84,34 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		097E955E2E96D3050075BB48 /* Vendor */ = {
+			isa = PBXGroup;
+			children = (
+				097E955F2E96D32D0075BB48 /* SwiftyBeaver */,
+			);
+			path = Vendor;
+			sourceTree = "<group>";
+		};
+		097E955F2E96D32D0075BB48 /* SwiftyBeaver */ = {
+			isa = PBXGroup;
+			children = (
+				097E95602E96D4850075BB48 /* Base64.swift */,
+				097E95622E96D49E0075BB48 /* BaseDestination.swift */,
+				097E95632E96D49E0075BB48 /* ConsoleDestination.swift */,
+				097E95642E96D49E0075BB48 /* Extensions.swift */,
+				097E95652E96D49E0075BB48 /* FileDestination.swift */,
+				097E95662E96D49E0075BB48 /* Filter.swift */,
+				097E95672E96D49E0075BB48 /* FilterValidator.swift */,
+				097E95682E96D49E0075BB48 /* GoogleCloudDestination.swift */,
+				097E95692E96D49E0075BB48 /* SwiftyBeaver.swift */,
+			);
+			path = SwiftyBeaver;
+			sourceTree = "<group>";
+		};
 		09D55D822E70BA050086F181 = {
 			isa = PBXGroup;
 			children = (
+				097E955E2E96D3050075BB48 /* Vendor */,
 				09D55E172E71CA9E0086F181 /* PaymentLibrary */,
 				09D55D9B2E70BA070086F181 /* PaymentLibraryTests */,
 				09D55D8D2E70BA050086F181 /* Products */,
@@ -79,7 +130,11 @@
 		09D55E172E71CA9E0086F181 /* PaymentLibrary */ = {
 			isa = PBXGroup;
 			children = (
-				09D55E132E71CA9E0086F181 /* PaymentClient.swift */,
+				097E958E2E9809560075BB48 /* Secrets.xconfig */,
+				097E95742E96EC070075BB48 /* PaymentClient.swift */,
+				091DC6AB2E749FAD0020EC9B /* SwiftyBeaverDynatraceLogger.swift */,
+				091DC6A32E747B720020EC9B /* CrashReporterKit.swift */,
+				091DC6862E71EAB60020EC9B /* BusinessEventsClient.swift */,
 				09D55E152E71CA9E0086F181 /* PaymentLibrary.docc */,
 				09D55E162E71CA9E0086F181 /* PaymentLibrary.swift */,
 			);
@@ -169,6 +224,8 @@
 			);
 			mainGroup = 09D55D822E70BA050086F181;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 09D55D8D2E70BA050086F181 /* Products */;
 			projectDirPath = "";
@@ -185,6 +242,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				097E958F2E9809600075BB48 /* Secrets.xconfig in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -202,7 +260,19 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				09D55E182E71CA9E0086F181 /* PaymentClient.swift in Sources */,
+				097E956A2E96D49E0075BB48 /* Extensions.swift in Sources */,
+				097E95752E96EC070075BB48 /* PaymentClient.swift in Sources */,
+				097E956B2E96D49E0075BB48 /* BaseDestination.swift in Sources */,
+				097E956C2E96D49E0075BB48 /* FilterValidator.swift in Sources */,
+				097E956D2E96D49E0075BB48 /* ConsoleDestination.swift in Sources */,
+				097E956E2E96D49E0075BB48 /* Filter.swift in Sources */,
+				097E956F2E96D49E0075BB48 /* GoogleCloudDestination.swift in Sources */,
+				097E95702E96D49E0075BB48 /* SwiftyBeaver.swift in Sources */,
+				097E95712E96D49E0075BB48 /* FileDestination.swift in Sources */,
+				091DC6AC2E749FAD0020EC9B /* SwiftyBeaverDynatraceLogger.swift in Sources */,
+				097E95612E96D4850075BB48 /* Base64.swift in Sources */,
+				091DC6A42E747B720020EC9B /* CrashReporterKit.swift in Sources */,
+				091DC6872E71EAB60020EC9B /* BusinessEventsClient.swift in Sources */,
 				09D55E1A2E71CA9E0086F181 /* PaymentLibrary.docc in Sources */,
 				09D55E1B2E71CA9E0086F181 /* PaymentLibrary.swift in Sources */,
 			);
@@ -355,12 +425,13 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DYLIB_COMPATIBILITY_VERSION = 1;
 				DYLIB_CURRENT_VERSION = 1;
 				DYLIB_INSTALL_NAME_BASE = "@rpath";
-				ENABLE_MODULE_VERIFIER = YES;
+				ENABLE_MODULE_VERIFIER = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
@@ -373,12 +444,15 @@
 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
 				NEW_SETTING = "";
+				NEW_SETTING1 = "";
 				PRODUCT_BUNDLE_IDENTIFIER = com.dynatracese.PaymentLibrary;
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
+				PUBLIC_HEADERS_FOLDER_PATH = Headers;
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_INSTALL_MODULE = YES;
 				SWIFT_INSTALL_OBJC_HEADER = NO;
+				SWIFT_OBJC_INTERFACE_HEADER_NAME = "";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -388,12 +462,13 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DYLIB_COMPATIBILITY_VERSION = 1;
 				DYLIB_CURRENT_VERSION = 1;
 				DYLIB_INSTALL_NAME_BASE = "@rpath";
-				ENABLE_MODULE_VERIFIER = YES;
+				ENABLE_MODULE_VERIFIER = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
@@ -406,13 +481,16 @@
 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
 				NEW_SETTING = "";
+				NEW_SETTING1 = "";
 				PRODUCT_BUNDLE_IDENTIFIER = com.dynatracese.PaymentLibrary;
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
+				PUBLIC_HEADERS_FOLDER_PATH = Headers;
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_INSTALL_MODULE = YES;
 				SWIFT_INSTALL_OBJC_HEADER = NO;
-				SWIFT_VERSION = 5.0;
+				SWIFT_OBJC_INTERFACE_HEADER_NAME = "";
+				SWIFT_VERSION = 5.9;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
@@ -427,7 +505,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.dynatracese.PaymentLibraryTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 5.9;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
@@ -442,7 +520,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.dynatracese.PaymentLibraryTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 5.9;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
