@@ -218,19 +218,3 @@ enum DynatraceError: Error {
         }
     }
 }
-
-// Example usage:
-/*
-// 1. Initialize your Dynatrace destination
-let dynatraceDest = DynatraceDestination(
-    endpoint: "https://<YOUR_TENANT>.live.dynatrace.com/api/v2/logs/ingest",
-    apiToken: "<YOUR_API_TOKEN>",
-    appName: "Mobile_iOS_App"
-)
-
-// 2. Add it to SwiftyBeaver
-log.addDestination(dynatraceDest)
-
-// 3. Log normally
-log.info("App started successfully!")
-*/

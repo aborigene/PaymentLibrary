@@ -21,13 +21,7 @@ import java.lang.Exception
 import java.util.UUID
 import android.content.Context
 import android.widget.Toast
-import com.dynatrace.openkit.DynatraceOpenKitBuilder
 import kotlin.random.Random
-import com.dynatrace.openkit.api.OpenKit
-//import com.dynatrace.openkit.core.DynatraceOpenKitBuilder
-import com.dynatrace.openkit.api.Session
-import com.dynatrace.openkit.api.Action
-import com.dynatrace.openkit.api.LogLevel
 import com.dynatracese.paymentlibrary.PaymentCrashHandler
 import java.net.Inet4Address
 import java.net.NetworkInterface
@@ -65,37 +59,10 @@ class PaymentClient private constructor(private val baseUrl: String, private val
     }
 
     private val paymentService: PaymentService?
-    private lateinit var session: Session
-    //private var crashStatus: Boolean = crashStatus
 
     init {
-        // Replace with your Dynatrace tenant URL and application ID
-
-        if(!this::session.isInitialized){
-            val tenantUrl = "https://bf78240axh.bf.dynatrace.com/mbeacon"
-            val applicationId = "b29101f0-9a10-44bb-9ae8-f024f0ec657a"
-            val deviceId = 12323423423 // A unique identifier for the device
-            val operatingSystem = "Android "+Build.VERSION.RELEASE+ " (API "+ Build.VERSION.SDK_INT+")"
-            val openKit = DynatraceOpenKitBuilder(tenantUrl, applicationId, deviceId)
-                .withApplicationVersion("1.0")
-                .withOperatingSystem(operatingSystem)
-                .withManufacturer(Build.MANUFACTURER)
-                .withModelID(Build.MODEL)
-                .withLogLevel(LogLevel.DEBUG)
-                .build()
-                .apply {
-                    // Wait until the OpenKit SDK is initialized
-                    waitForInitCompletion()
-                }
-            session = openKit.createSession(getLocalIpAddress())
-            val userName = UUID.randomUUID().toString()
-            Log.i("OpenKit", "Session identified with user "+ userName)
-            session.identifyUser(userName+"@example.com")
-            PaymentCrashHandler.register(context.applicationContext, session)
-            Log.i("OpenKit", "Session initialized:" + session.toString())
-        }
-
-        Log.i("OpenKit", "This is the session:" + session.toString())
+        // Register crash handler
+        PaymentCrashHandler.register(context.applicationContext)
 
         // Se a URL for "TEST_ONLY", não inicializa o Retrofit
         if (baseUrl != "TEST_ONLY") {
@@ -110,6 +77,7 @@ class PaymentClient private constructor(private val baseUrl: String, private val
         }
 
         Log.d("PaymentLibrary", "PaymentLibrary initialized successfully.")
+        DynatraceLogger.info("PaymentLibrary initialized successfully", "PaymentClient")
     }
 
     /**
@@ -127,13 +95,21 @@ class PaymentClient private constructor(private val baseUrl: String, private val
         callback: PaymentCallback,
         crashStatus: Boolean
     ) {
-        val action = session.enterAction("Payment Process")
-        Log.i("receivePayment", "Starting send payment")
-        Log.i("OpenKit", "This is the session:"+session.toString())
-        Log.i("OpenKit", "This is the action:"+action.toString())
-        executePayment(amount, creditCardNumber, vendorName, vendorId, callback, crashStatus)
-        action.leaveAction()
-        Log.i("receivePayment", "Finished Sending payment")
+        // Use BusinessEventsClient to track the payment process
+        BusinessEventsClient.withAction(
+            name = "Payment Process",
+            attributes = mapOf(
+                "amount" to amount,
+                "vendorName" to vendorName,
+                "vendorId" to vendorId
+            )
+        ) {
+            Log.i("receivePayment", "Starting send payment")
+            DynatraceLogger.info("Starting payment processing", "PaymentClient")
+            executePayment(amount, creditCardNumber, vendorName, vendorId, callback, crashStatus)
+            Log.i("receivePayment", "Finished Sending payment")
+            DynatraceLogger.info("Payment processing completed", "PaymentClient")
+        }
     }
 
     private fun getLocalIpAddress(): String? {
@@ -169,7 +145,8 @@ class PaymentClient private constructor(private val baseUrl: String, private val
             val sw = StringWriter()
             val pw = PrintWriter(sw)
             Throwable().printStackTrace(pw)
-            session.reportCrash(Throwable())
+            // Report crash without OpenKit
+            PaymentCrashHandler.reportCrash(Throwable("Simulated Payment Library Crash"))
             Thread.sleep(2000)
             // Throw an unhandled exception to cause a crash
             throw NullPointerException("Simulated Payment Library Crash")

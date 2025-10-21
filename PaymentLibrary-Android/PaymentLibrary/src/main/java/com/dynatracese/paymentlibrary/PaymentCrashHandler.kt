@@ -8,23 +8,29 @@ import java.io.PrintWriter
 import java.io.StringWriter
 import java.util.*
 import kotlin.system.exitProcess
-import com.dynatrace.openkit.DynatraceOpenKitBuilder
-import com.dynatrace.openkit.api.OpenKit
-import com.dynatrace.openkit.api.Session
-import com.dynatrace.openkit.api.Action
-
 class PaymentCrashHandler(private val context: Context, private val originalHandler: Thread.UncaughtExceptionHandler?) : Thread.UncaughtExceptionHandler {
 
     companion object {
-        private lateinit var crashSession: Session
+        private var instance: PaymentCrashHandler? = null
 
-        fun register(context: Context, session: Session) {
-            crashSession = session
+        fun register(context: Context) {
             val originalHandler = Thread.getDefaultUncaughtExceptionHandler()
             if (originalHandler !is PaymentCrashHandler) {
-                Thread.setDefaultUncaughtExceptionHandler(PaymentCrashHandler(context, originalHandler))
+                instance = PaymentCrashHandler(context, originalHandler)
+                Thread.setDefaultUncaughtExceptionHandler(instance)
                 Log.i("registered status", "register: registered successfully")
             }
+        }
+
+        fun reportCrash(throwable: Throwable) {
+            val sw = StringWriter()
+            val pw = PrintWriter(sw)
+            throwable.printStackTrace(pw)
+            val stackTrace = sw.toString()
+            val description = throwable.message
+            
+            // Log crash using DynatraceLogger (which sends to Dynatrace Log Ingest API)
+            DynatraceLogger.error("Crash reported - Class: ${throwable.javaClass.simpleName}, Description: $description, StackTrace: $stackTrace", "PaymentCrashHandler", throwable)
         }
     }
 
@@ -35,24 +41,16 @@ class PaymentCrashHandler(private val context: Context, private val originalHand
         throwable.printStackTrace(pw)
         val stackTrace = sw.toString()
         val description = throwable.message
-        Log.i("test","uncaughtException: This is a log from the PaymentCrashHandler....")
-        Log.i("test","uncaughtException: This is a log from the PaymentCrashHandler....")
-        Log.i("test","uncaughtException: This is a log from the PaymentCrashHandler....")
-        Log.i("test","uncaughtException: This is a log from the PaymentCrashHandler....")
-        Log.i("test","uncaughtException: This is a log from the PaymentCrashHandler....")
-        Log.i("test","uncaughtException: This is a log from the PaymentCrashHandler....")
-
-
-//        PaymentCrashHandler.crashSession.reportCrash(throwable.message, "Deu ruim", stackTrace)
-        crashSession.reportCrash(throwable.javaClass.simpleName, description, stackTrace)
-        Thread.sleep(2000)
-        Log.i("OpenKit", "class: "+throwable.javaClass.simpleName)
-        Log.i("OpenKit", "description: "+description)
-        Log.i("OpenKit", "stacktrace: "+stackTrace)
-        Log.i("Crash", "This the sent crash session info:"+ crashSession.toString())
+        
+        Log.i("PaymentCrashHandler", "Uncaught exception occurred")
+        
+        // Report crash using the new method
+        reportCrash(throwable)
 
         val crashInfo = "Timestamp: ${Date()}\n" +
                 "Device: ${android.os.Build.MODEL}\n" +
+                "Exception Class: ${throwable.javaClass.simpleName}\n" +
+                "Description: $description\n" +
                 "Stack Trace:\n$stackTrace"
 
         // 2. Write to a file
