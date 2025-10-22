@@ -2,6 +2,35 @@
 
 This guide shows how to integrate the PaymentLibrary (with Dynatrace BusinessEvents and DynatraceLogger) into your main Banking Android application using the generated AAR file.
 
+## 🚨 Quick Fix for ClassNotFoundException
+
+If you're seeing errors like:
+```
+java.lang.NoClassDefFoundError: Failed resolution of: Lokhttp3/OkHttpClient;
+```
+
+**Immediate Solution**: Add ALL these dependencies to your Banking App's `build.gradle.kts`:
+
+```kotlin
+dependencies {
+    implementation(files("libs/paymentlibrary-release.aar"))
+    
+    // REQUIRED: All PaymentLibrary transitive dependencies
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.11.0")
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    implementation("com.google.code.gson:gson:2.10.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+    implementation("com.google.android.material:material:1.5.0")
+}
+```
+
+Then: `./gradlew clean build`
+
+---
+
 ## 1. Generate and Import PaymentLibrary AAR
 
 ### Step 1: Generate the AAR file
@@ -40,11 +69,15 @@ dependencies {
     // Import the PaymentLibrary AAR
     implementation(files("libs/paymentlibrary-release.aar"))
     
-    // Add required dependencies that PaymentLibrary needs
+    // Add ALL required dependencies that PaymentLibrary needs (CRITICAL for AAR integration)
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("com.google.code.gson:gson:2.10.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.11.0") // Required by PaymentClient
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")           // Required by PaymentClient
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")    // Required by PaymentClient
+    implementation("com.google.code.gson:gson:2.10.1")              // Required by DynatraceLogger
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3") // Required by both
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3") // Required by BusinessEventsClient
+    implementation("com.google.android.material:material:1.5.0")     // Required by UI components (if any)
     
     // ... your other dependencies
 }
@@ -734,17 +767,84 @@ fun verifyPaymentLibraryIntegration() {
 
 ### Common Issues and Solutions
 
-1. **ClassNotFoundException**
+1. **ClassNotFoundException for OkHttp (CRITICAL)**
+   ```
+   java.lang.NoClassDefFoundError: Failed resolution of: Lokhttp3/OkHttpClient;
+   ```
+   **Cause**: AAR files don't automatically include transitive dependencies in the consuming app.
+   
+   **Solution**: Add ALL PaymentLibrary dependencies to your Banking App's `build.gradle.kts`:
+   ```kotlin
+   dependencies {
+       implementation(files("libs/paymentlibrary-release.aar"))
+       
+       // REQUIRED: All PaymentLibrary dependencies
+       implementation("com.squareup.okhttp3:okhttp:4.12.0")
+       implementation("com.squareup.okhttp3:logging-interceptor:4.11.0")
+       implementation("com.squareup.retrofit2:retrofit:2.9.0")
+       implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+       implementation("com.google.code.gson:gson:2.10.1")
+       implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+       implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+       implementation("com.google.android.material:material:1.5.0")
+   }
+   ```
+   Then clean and rebuild:
+   ```bash
+   ./gradlew clean build
+   ```
+
+   **Validation Script**: Create this script to verify all dependencies are included:
+   ```bash
+   #!/bin/bash
+   # validate_dependencies.sh
+   
+   echo "Checking PaymentLibrary dependencies in build.gradle.kts..."
+   
+   REQUIRED_DEPS=(
+       "com.squareup.okhttp3:okhttp"
+       "com.squareup.okhttp3:logging-interceptor" 
+       "com.squareup.retrofit2:retrofit"
+       "com.squareup.retrofit2:converter-gson"
+       "com.google.code.gson:gson"
+       "org.jetbrains.kotlinx:kotlinx-coroutines-android"
+       "org.jetbrains.kotlinx:kotlinx-serialization-json"
+   )
+   
+   MISSING_DEPS=()
+   
+   for dep in "${REQUIRED_DEPS[@]}"; do
+       if ! grep -q "$dep" app/build.gradle.kts; then
+           MISSING_DEPS+=("$dep")
+       fi
+   done
+   
+   if [ ${#MISSING_DEPS[@]} -eq 0 ]; then
+       echo "✅ All required dependencies found!"
+   else
+       echo "❌ Missing required dependencies:"
+       for dep in "${MISSING_DEPS[@]}"; do
+           echo "  - $dep"
+       done
+       echo ""
+       echo "Add these to your app/build.gradle.kts dependencies block."
+   fi
+   ```
+
+2. **General ClassNotFoundException**
    - Ensure all required dependencies are added to Banking App's `build.gradle.kts`
+   - Verify dependency versions match exactly with PaymentLibrary
    - Clean and rebuild both projects
 
-2. **NoSuchMethodError**
+3. **NoSuchMethodError**
    - AAR might be outdated, regenerate it
-   - Check that dependency versions match
+   - Check that dependency versions match exactly
+   - Ensure you're using the correct version of dependencies
 
-3. **Import Issues**
+4. **Import Issues**
    - Verify package names: `com.dynatracese.paymentlibrary.*`
    - Check that AAR is in correct `libs` folder
+   - Ensure AAR file wasn't corrupted during copy
 
 ## 12. Best Practices
 
