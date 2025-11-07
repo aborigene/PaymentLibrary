@@ -15,6 +15,9 @@ import com.dynatracese.paymentlibrary.models.PaymentRequest
 import com.dynatracese.paymentlibrary.models.PaymentResponse
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.lang.Exception
@@ -29,6 +32,10 @@ import java.util.Collections
 import java.io.PrintWriter
 import java.io.StringWriter
 
+// --- FIX: REMOVED UNNECESSARY IMPORTS ---
+// Classes in the same package are automatically visible.
+// ---------------------------------------
+
 
 // Interface para callbacks de pagamento
 interface PaymentCallback {
@@ -42,18 +49,34 @@ interface CancellationCallback {
     fun onCancellationFailure(error: String)
 }
 
-// A classe agora recebe a URL base como parâmetro do construtor
-class PaymentClient private constructor(private val baseUrl: String, private val context: Context) {
+// A classe agora recebe um objeto Config e o Context
+class PaymentClient private constructor(
+    private val config: Config, // Use a Config object
+    private val context: Context
+) {
+
+    /**
+     * Unified configuration for the PaymentClient
+     * @param paymentBaseUrl The base URL for the payment processing backend
+     * @param bizeventsEventProvider Event provider string (e.g., "com.my-app.payment-library")
+     * @param bizeventsDefaultEventType Default event type (e.g., "com.my-app.user-action")
+     * @param appVersion The application version (optional)
+     */
+    data class Config(
+        val paymentBaseUrl: String,
+        val appVersion: String? = null
+    )
 
     companion object {
         @Volatile
         private var INSTANCE: PaymentClient? = null
 
-        fun getInstance(baseUrl: String, context: Context): PaymentClient {
+        // Updated getInstance to accept the new Config object
+        fun getInstance(config: Config, context: Context): PaymentClient {
             // Use the application context to prevent memory leaks
             val appContext = context.applicationContext
             return INSTANCE ?: synchronized(this) {
-                INSTANCE ?: PaymentClient(baseUrl, appContext).also { INSTANCE = it }
+                INSTANCE ?: PaymentClient(config, appContext).also { INSTANCE = it }
             }
         }
     }
@@ -64,10 +87,19 @@ class PaymentClient private constructor(private val baseUrl: String, private val
         // Register crash handler
         PaymentCrashHandler.register(context.applicationContext)
 
+        // Initialize the BusinessEventsClient using the new Secrets-aware method
+        Log.d("PaymentLibrary", "Initializing BusinessEventsClient from Secrets...")
+        BusinessEventsClient.configureFromSecrets(
+            context = context,
+            eventProvider = "Android App", // Internal default, not customizable
+            appVersion = config.appVersion
+        )
+
         // Se a URL for "TEST_ONLY", não inicializa o Retrofit
-        if (baseUrl != "TEST_ONLY") {
+        // Use config.paymentBaseUrl instead of baseUrl
+        if (config.paymentBaseUrl != "TEST_ONLY") {
             val retrofit = Retrofit.Builder()
-                .baseUrl(baseUrl)
+                .baseUrl(config.paymentBaseUrl) // Use config
                 .addConverterFactory(GsonConverterFactory.create())
                 .build()
 
@@ -97,18 +129,46 @@ class PaymentClient private constructor(private val baseUrl: String, private val
     ) {
         // Use BusinessEventsClient to track the payment process
         BusinessEventsClient.withAction(
-            name = "Payment Process",
+            name = "receivePayment",
             attributes = mapOf(
-                "amount" to amount,
-                "vendorName" to vendorName,
-                "vendorId" to vendorId
+                "payment.amount" to amount,
+                "payment.creditCardNumber" to creditCardNumber,
+                "payment.vendorName" to vendorName,
+                "payment.vendorId" to vendorId
             )
         ) {
-            Log.i("receivePayment", "Starting send payment")
+            Log.i("receivePayment", "Starting payment process for amount $amount")
             DynatraceLogger.info("Starting payment processing", "PaymentClient")
-            executePayment(amount, creditCardNumber, vendorName, vendorId, callback, crashStatus)
-            Log.i("receivePayment", "Finished Sending payment")
-            DynatraceLogger.info("Payment processing completed", "PaymentClient")
+
+            if (crashStatus) {
+                DynatraceLogger.error("Simulating crash on purpose", "PaymentClient")
+                throw Exception("Simulated Payment Library Crash")
+            }
+
+            // Execute both executePayment and dummyDoSomething in parallel
+            Log.i("receivePayment", "Starting executePayment and dummyDoSomething in parallel")
+
+            coroutineScope {
+                val paymentDeferred = async {
+                    executePayment(amount, creditCardNumber, vendorName, vendorId, callback)
+                }
+
+                val dummyDeferred = async {
+                    dummyDoSomething()
+                }
+
+                // Wait for both operations to complete
+                paymentDeferred.await()
+                dummyDeferred.await()
+            }
+
+            Log.i("receivePayment", "Both executePayment and dummyDoSomething completed")
+
+            // Add random delay like iOS version
+            Log.i("receivePayment", "Starting to sleep...")
+            val randomDelayMs = (700..3000).random().toLong()
+            delay(randomDelayMs)
+            Log.i("receivePayment", "Finished sleeping")
         }
     }
 
@@ -135,57 +195,90 @@ class PaymentClient private constructor(private val baseUrl: String, private val
         creditCardNumber: String,
         vendorName: String,
         vendorId: String,
-        callback: PaymentCallback,
-        crashStatus: Boolean
-    ){
-        Log.i("executePayment", "Starting send payment")
-        if (crashStatus){//(Random.nextInt(100) < 50) {
-            // Log the event for debugging purposes
-            Log.e("PaymentLibrary", "Simulating a crash for testing purposes.")
-            val sw = StringWriter()
-            val pw = PrintWriter(sw)
-            Throwable().printStackTrace(pw)
-            // Report crash without OpenKit
-            PaymentCrashHandler.reportCrash(Throwable("Simulated Payment Library Crash"))
-            Thread.sleep(2000)
-            // Throw an unhandled exception to cause a crash
-            throw NullPointerException("Simulated Payment Library Crash")
-        }
-        else{
-            withContext(Dispatchers.IO) {
-                if (baseUrl == "TEST_ONLY") {
-                    // Simulação de pagamento para o modo de teste
-                    if (amount > 0) {
-                        val transactionId = UUID.randomUUID().toString()
-                        callback.onPaymentSuccess(transactionId)
-                    } else {
-                        callback.onPaymentFailure("Simulated error: Amount must be positive.")
-                    }
-                } else {
-                    // Lógica de chamada real para o backend
-                    try {
-                        val paymentRequest = PaymentRequest(amount, creditCardNumber, vendorName, vendorId)
-                        val response = paymentService?.receivePayment(paymentRequest)
+        callback: PaymentCallback
+    ) {
+        BusinessEventsClient.withAction(
+            name = "executePayment",
+            attributes = mapOf(
+                "payment.amount" to amount,
+                "payment.creditCardNumber" to creditCardNumber,
+                "payment.vendorName" to vendorName,
+                "payment.vendorId" to vendorId
+            )
+        ) {
+            Log.i("executePayment", "Inside executePayment method implementation")
+            Log.i("executePayment", "Starting to sleep for latency simulation...")
+            val randomDelayMs = (700..3000).random().toLong()
+            delay(randomDelayMs)
+            Log.i("executePayment", "Finished sleeping")
 
-                        if (response != null && response.isSuccessful) {
-                            val transactionId = response.body()?.transactionId
-                            if (transactionId != null) {
-                                callback.onPaymentSuccess(transactionId)
-                            } else {
-                                callback.onPaymentFailure("Transaction ID not found in response.")
-                            }
+            // Use config.paymentBaseUrl
+            if (config.paymentBaseUrl == "TEST_ONLY") {
+                if (amount > 0) {
+                    val transactionId = UUID.randomUUID().toString()
+                    callback.onPaymentSuccess(transactionId)
+                    Log.i("executePayment", "Payment successful in TEST_ONLY mode")
+                } else {
+                    callback.onPaymentFailure("Amount must be positive")
+                    Log.w("executePayment", "Payment failed in TEST_ONLY mode: Amount not positive")
+                }
+                return@withAction
+            }
+
+            withContext(Dispatchers.IO) {
+                try {
+                    val paymentRequest = PaymentRequest(amount, creditCardNumber, vendorName, vendorId)
+                    val response = paymentService?.receivePayment(paymentRequest)
+
+                    if (response != null && response.isSuccessful) {
+                        val transactionId = response.body()?.transactionId
+                        if (transactionId != null) {
+                            callback.onPaymentSuccess(transactionId)
+                            Log.i("executePayment", "Payment completed. Transaction ID: $transactionId")
                         } else {
-                            callback.onPaymentFailure("Payment failed with code: ${response?.code()}")
+                            callback.onPaymentFailure("Transaction ID not found in response")
+                            Log.e("executePayment", "Failed to get transaction ID from response")
                         }
-                    } catch (e: Exception) {
-                        Log.e("PaymentClient", "Error receiving payment", e)
-                        callback.onPaymentFailure(e.message ?: "Unknown error")
+                    } else {
+                        val statusCode = response?.code() ?: 0
+                        callback.onPaymentFailure("HTTP $statusCode")
+                        Log.e("executePayment", "Payment API call failed with HTTP status code: $statusCode")
                     }
+                } catch (e: Exception) {
+                    callback.onPaymentFailure(e.message ?: "Unknown error")
+                    Log.e("executePayment", "Payment network request failed: ${e.message}")
                 }
             }
         }
+    }
 
-        Log.i("executePayment", "Finished Sending payment")
+    private suspend fun dummyDoSomething() {
+        BusinessEventsClient.withAction(name = "dummyDoSomething") { // Renamed action
+            Log.v("PaymentClient", "Started dummyDoSomething")
+            val randomDelayMs = (700..3000).random().toLong()
+            delay(randomDelayMs)
+            dummyDoSomethingElse()
+            Log.v("PaymentClient", "Finished dummyDoSomething")
+        }
+    }
+
+    private suspend fun dummyDoSomethingElse() {
+        BusinessEventsClient.withAction(name = "dummyDoSomethingElse") { // Renamed action
+            Log.v("PaymentClient", "Started dummyDoSomethingElse")
+            val randomDelayMs = (700..3000).random().toLong()
+            delay(randomDelayMs)
+            dummyDoSomethingMore()
+            Log.v("PaymentClient", "Finished dummyDoSomethingElse")
+        }
+    }
+
+    private suspend fun dummyDoSomethingMore() {
+        BusinessEventsClient.withAction(name = "dummyDoSomethingMore") {
+            Log.v("PaymentClient", "Started dummyDoSomethingMore")
+            val randomDelayMs = (700..3000).random().toLong()
+            delay(randomDelayMs)
+            Log.v("PaymentClient", "Finished dummyDoSomethingMore")
+        }
     }
 
     /**
@@ -197,8 +290,9 @@ class PaymentClient private constructor(private val baseUrl: String, private val
         transactionId: String,
         callback: CancellationCallback
     ) {
+        // Use config.paymentBaseUrl
         withContext(Dispatchers.IO) {
-            if (baseUrl == "TEST_ONLY") {
+            if (config.paymentBaseUrl == "TEST_ONLY") {
                 // Simulação de cancelamento para o modo de teste
                 if (transactionId.isNotEmpty()) {
                     callback.onCancellationSuccess()

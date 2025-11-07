@@ -34,7 +34,6 @@ class ExampleApplication : Application() {
                 endpoint = endpoint,
                 auth = BusinessEventsClient.Auth.ApiToken(apiToken),
                 eventProvider = "com.dynatracese.payment.android", // Matches iOS: com.unitedgames.payment.ios
-                defaultEventType = "com.dynatracese.user.action", // Matches iOS: com.unitedgames.user.action
                 appVersion = getAppVersion(),
                 deviceInfo = getDeviceInfo()
             )

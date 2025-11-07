@@ -17,7 +17,6 @@ class BusinessEventsClientTest {
             endpoint = "https://test.dynatrace.com/api/v2/bizevents/ingest",
             auth = BusinessEventsClient.Auth.ApiToken("test-token"),
             eventProvider = "test.provider",
-            defaultEventType = "test.event",
             appVersion = "1.0.0",
             deviceInfo = "Test Device"
         )
@@ -42,8 +41,7 @@ class BusinessEventsClientTest {
         val config = BusinessEventsClient.Config(
             endpoint = "https://test.dynatrace.com/api/v2/bizevents/ingest",
             auth = BusinessEventsClient.Auth.ApiToken("test-token"),
-            eventProvider = "test.provider",
-            defaultEventType = "test.event"
+            eventProvider = "test.provider"
         )
         
         BusinessEventsClient.configure(config)
@@ -74,8 +72,7 @@ class BusinessEventsClientTest {
         val config = BusinessEventsClient.Config(
             endpoint = "https://test.dynatrace.com/api/v2/bizevents/ingest",
             auth = BusinessEventsClient.Auth.ApiToken("test-token"),
-            eventProvider = "test.provider",
-            defaultEventType = "test.event"
+            eventProvider = "test.provider"
         )
         
         BusinessEventsClient.configure(config)

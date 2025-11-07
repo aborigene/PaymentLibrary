@@ -117,6 +117,7 @@ class BankingApplication : Application() {
         )
         
         // 2. Configure BusinessEventsClient for RUM monitoring
+        // Option A: Basic configuration with manual device info
         BusinessEventsClient.configure(
             BusinessEventsClient.Config(
                 endpoint = "https://YOUR_TENANT.live.dynatrace.com/api/v2/bizevents/ingest",
@@ -127,6 +128,20 @@ class BankingApplication : Application() {
                 deviceInfo = getDeviceInfo()
             )
         )
+        
+        // Option B: Enhanced configuration with automatic device metadata (RECOMMENDED)
+        // This automatically collects comprehensive device metadata including OS info,
+        // hardware details, network information, ISP details, and more
+        /*
+        BusinessEventsClient.configureWithDeviceMetadata(
+            context = this,
+            endpoint = "https://YOUR_TENANT.live.dynatrace.com/api/v2/bizevents/ingest",
+            auth = BusinessEventsClient.Auth.ApiToken("dt0c01.YOUR_BIZEVENTS_TOKEN"), 
+            eventProvider = "com.yourbank.banking.android",
+            defaultEventType = "com.yourbank.user.action",
+            appVersion = getAppVersion()
+        )
+        */
         
         DynatraceLogger.info("Banking App initialized with Dynatrace integration", "BankingApplication")
     }
@@ -146,6 +161,46 @@ class BankingApplication : Application() {
 }
 ```
 
+### Enhanced Device Metadata Collection
+
+When using `configureWithDeviceMetadata()`, the PaymentLibrary automatically collects comprehensive device information that gets included in all business events:
+
+#### Device & Hardware Information
+- Device manufacturer, model, brand, and product name
+- Hardware details (board, hardware type)  
+- Screen resolution and density
+- Available memory and storage capacity
+
+#### Operating System Details
+- Android version and API level
+- Build fingerprint and security patch level
+- System architecture and kernel information
+
+#### Network & Connectivity
+- Connection type (WiFi, Mobile, Ethernet)
+- Mobile network operator name and country code
+- ISP name and IP address (when available)
+- Network capabilities and status
+
+#### Application Context
+- App version and build information
+- Device locale and timezone
+- Battery level and charging state
+- Available storage space
+
+#### Event Attribute Names
+The collected metadata is added to business events with the following attribute names:
+```
+device.manufacturer, device.model, device.brand
+device.os_version, device.api_level 
+device.screen_width, device.screen_height
+device.memory_total, device.memory_available
+device.storage_total, device.storage_available
+network.type, network.operator, network.isp
+network.ip_address, device.locale, device.timezone
+device.battery_level, device.is_charging
+```
+
 ### Register Application Class in Manifest
 
 ```xml
@@ -162,7 +217,30 @@ class BankingApplication : Application() {
 </application>
 ```
 
-## 3. Payment Integration in Activities/ViewModels
+## 3. Required Permissions for Enhanced Device Metadata
+
+If you plan to use the enhanced `configureWithDeviceMetadata()` method for comprehensive device information collection, add these permissions to your `AndroidManifest.xml`:
+
+```xml
+<!-- Required permissions for device metadata collection -->
+<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+<uses-permission android:name="android.permission.READ_PHONE_STATE" />
+
+<!-- Optional permissions for additional network details -->  
+<uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+<uses-permission android:name="android.permission.INTERNET" />
+```
+
+**Note**: These permissions enable the PaymentLibrary to collect:
+- Network connection type and status
+- Mobile operator information  
+- ISP details and IP address
+- WiFi state and capabilities
+- Device telephony information
+
+The library gracefully handles missing permissions and will collect available metadata only.
+
+## 4. Payment Integration in Activities/ViewModels
 
 ### Example: Payment Activity
 
@@ -584,7 +662,111 @@ class BankingErrorHandler {
 }
 ```
 
-## 8. Performance Monitoring
+## 8. Enhanced Device Metadata Usage Example
+
+Here's a complete example showing how to use the enhanced BusinessEventsClient with automatic device metadata collection:
+
+```kotlin
+// BankingApplication.kt
+class BankingApplication : Application() {
+    
+    override fun onCreate() {
+        super.onCreate()
+        configureDynatraceWithEnhancedMetadata()
+    }
+    
+    private fun configureDynatraceWithEnhancedMetadata() {
+        // Configure with comprehensive device metadata collection
+        BusinessEventsClient.configureWithDeviceMetadata(
+            context = this,
+            endpoint = "https://abc12345.live.dynatrace.com/api/v2/bizevents/ingest",
+            auth = BusinessEventsClient.Auth.ApiToken("dt0c01.ABCD1234EFGH5678"),
+            eventProvider = "banking-android-app",
+            defaultEventType = "com.bank.user.action",
+            appVersion = BuildConfig.VERSION_NAME
+        )
+        
+        Log.d("BankingApp", "Configured with enhanced device metadata collection")
+    }
+}
+
+// PaymentActivity.kt - Usage in payment flows
+class PaymentActivity : AppCompatActivity() {
+    
+    private fun processPayment(amount: Double, currency: String) {
+        lifecycleScope.launch {
+            try {
+                // Begin tracking payment action with enhanced metadata
+                val actionId = BusinessEventsClient.beginAction(
+                    name = "process_payment",
+                    eventType = "com.bank.payment.transaction", 
+                    extraAttributes = mapOf(
+                        "amount" to amount,
+                        "currency" to currency,
+                        "payment_method" to "card"
+                    )
+                )
+                
+                // Process payment...
+                val result = paymentClient.processPayment(amount, currency)
+                
+                // End action with success - device metadata automatically included
+                BusinessEventsClient.endAction(
+                    actionId = actionId,
+                    status = "SUCCESS",
+                    extraAttributes = mapOf(
+                        "transaction_id" to result.transactionId,
+                        "processing_time_ms" to result.processingTime
+                    )
+                )
+                
+            } catch (e: Exception) {
+                // End action with error - device metadata automatically included
+                BusinessEventsClient.endAction(
+                    actionId = actionId,
+                    status = "ERROR", 
+                    error = e.message ?: e.toString()
+                )
+            }
+        }
+    }
+}
+```
+
+### What Gets Automatically Included
+
+When you use `configureWithDeviceMetadata()`, every business event will automatically include:
+
+```json
+{
+  "action.id": "123e4567-e89b-12d3-a456-426614174000",
+  "action.name": "process_payment", 
+  "action.status": "SUCCESS",
+  "action.durationMs": 1250,
+  "amount": 99.99,
+  "currency": "USD",
+  
+  // Automatically collected device metadata:
+  "device.manufacturer": "Samsung",
+  "device.model": "Galaxy S21", 
+  "device.os_version": "Android 13",
+  "device.api_level": 33,
+  "device.screen_width": 1080,
+  "device.screen_height": 2400, 
+  "device.memory_total": 8192,
+  "device.memory_available": 4096,
+  "network.type": "WIFI",
+  "network.operator": "Verizon",
+  "network.isp": "Verizon Communications",
+  "network.ip_address": "192.168.1.100",
+  "device.locale": "en_US",
+  "device.timezone": "America/New_York",
+  "device.battery_level": 85,
+  "device.is_charging": false
+}
+```
+
+## 9. Performance Monitoring
 
 ```kotlin
 // Performance monitoring utility
@@ -874,4 +1056,43 @@ fun verifyPaymentLibraryIntegration() {
    - Use business events to track operation durations
    - Implement proper coroutine scoping in Banking App
 
-This AAR-based integration provides comprehensive monitoring of your banking app's payment flows while maintaining the same correlation and tracking capabilities as the iOS version.
+## Enhanced Device Metadata Features Summary
+
+The PaymentLibrary has been enhanced with comprehensive device metadata collection capabilities:
+
+### New Features Added
+
+1. **DeviceMetadataCollector.kt**:
+   - Comprehensive metadata collection class
+   - Collects 20+ device attributes automatically
+   - Handles permissions gracefully
+   - Formats data for business events
+
+2. **Enhanced BusinessEventsClient**:
+   - New `configureWithDeviceMetadata()` method
+   - Automatic metadata collection during configuration
+   - All business events include device context
+   - Backward compatible with existing code
+
+3. **Comprehensive Device Information**:
+   - Hardware details (manufacturer, model, memory, storage)
+   - OS information (Android version, API level, security patch)
+   - Network context (connection type, ISP, operator)
+   - Application context (locale, timezone, battery level)
+
+### Integration Benefits
+
+- **Enhanced Debugging**: Rich device context for troubleshooting issues
+- **User Analytics**: Better understanding of user devices and environments  
+- **Performance Insights**: Correlate performance with device capabilities
+- **Network Analysis**: Track issues by connection type and ISP
+- **Geographic Context**: Timezone and locale information for regional analysis
+
+### Usage Recommendations
+
+- Use `configureWithDeviceMetadata()` for new integrations
+- Add required permissions for complete metadata collection
+- Review collected data to ensure compliance with privacy requirements
+- Use device metadata for contextual analysis in Dynatrace
+
+This AAR-based integration provides comprehensive monitoring of your banking app's payment flows with rich device context, maintaining the same correlation and tracking capabilities as the iOS version while adding enhanced observability features.

@@ -59,19 +59,37 @@ public final class PaymentClient {
     
     private let bizEventsURL: URL = URL(string: "\(Secrets.dynatraceTenant)/api/v2/bizevents/ingest")!
     private let bizEventToken: String = Secrets.dynatraceBusinessEventIngestToken
-    private let bizEventProvider: String = "PaymentLibrary"
     
-    public func configureBusinessEvents(endpoint: URL, auth: BusinessEventsClient.Auth, eventProvider: String) {
+    public func configureBusinessEvents(endpoint: URL, auth: BusinessEventsClient.Auth, eventProvider: String? = nil) {
         BusinessEventsClient.shared.configure(
-            .init(
-                endpoint: endpoint,
-                auth: auth,
-                eventProvider: eventProvider,
-                defaultEventType: "com.paymentlibrary.transaction",
-                appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
-                deviceInfo: UIDevice.current.systemName + " " + UIDevice.current.systemVersion
-            )
+            endpoint: endpoint,
+            auth: auth,
+            eventProvider: eventProvider,
+            appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
+            deviceInfo: UIDevice.current.systemName + " " + UIDevice.current.systemVersion
         )
+    }
+    
+    /// Enhanced business events configuration with comprehensive device metadata collection
+    /// This method automatically collects 25+ device attributes for enhanced observability
+    /// - Parameters:
+    ///   - endpoint: Dynatrace bizevents ingest endpoint
+    ///   - auth: Authentication method (API token or Bearer token)
+    ///   - eventProvider: Event provider identifier (optional, defaults to "Custom RUM Application")
+    public func configureBusinessEventsWithDeviceMetadata(
+        endpoint: URL,
+        auth: BusinessEventsClient.Auth,
+        eventProvider: String? = nil
+    ) {
+        BusinessEventsClient.shared.configureWithDeviceMetadata(
+            endpoint: endpoint,
+            auth: auth,
+            eventProvider: eventProvider,
+            appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
+        )
+        
+        // Log enhanced configuration
+        PaymentClient.logger.info("PaymentClient configured with enhanced device metadata collection")
     }
     
     // --- SwiftyBeaver/Dynatrace Log Ingest Configuration ---
@@ -108,18 +126,56 @@ public final class PaymentClient {
         instance = i
         return i
     }
+    
+    /// Enhanced singleton initialization with comprehensive device metadata collection
+    /// This method automatically configures the PaymentClient with rich device context
+    /// for improved analytics, debugging, and fraud detection capabilities.
+    /// Note: session_started business event is created automatically by BusinessEventsClient
+    /// - Parameters:
+    ///   - baseUrl: Base URL for payment processing
+    ///   - dynatraceEndpoint: Dynatrace bizevents ingest endpoint (optional, uses default if not provided)
+    ///   - dynatraceToken: Dynatrace API token with bizevents.ingest scope (optional, uses default if not provided)
+    ///   - eventProvider: Event provider identifier (optional, uses default if not provided)
+    /// - Returns: Configured PaymentClient instance with enhanced device metadata
+    @discardableResult
+    public static func getInstanceWithEnhancedMetadata(
+        baseUrl: String,
+        dynatraceEndpoint: URL? = nil,
+        dynatraceToken: String? = nil,
+        eventProvider: String? = nil
+    ) -> PaymentClient {
+        if let i = instance { return i }
+        
+        // Configure logging
+        PaymentClient.configureLogging()
+        
+        // Create instance with enhanced configuration
+        let i = PaymentClient(baseUrl: baseUrl)
+        
+        // Override with enhanced configuration if custom parameters provided
+        if let endpoint = dynatraceEndpoint,
+           let token = dynatraceToken {
+            i.configureBusinessEventsWithDeviceMetadata(
+                endpoint: endpoint,
+                auth: .apiToken(token),
+                eventProvider: eventProvider  // Can be nil, will use default
+            )
+        }
+        
+        instance = i
+        return i
+    }
 
     private init(baseUrl: String) {
         self.baseUrl = baseUrl
         
-        // Configure other services
-        configureBusinessEvents(endpoint: bizEventsURL, auth: .apiToken(bizEventToken), eventProvider: bizEventProvider)
+        // Configure services with enhanced device metadata collection using default values
+        configureBusinessEventsWithDeviceMetadata(
+            endpoint: bizEventsURL, 
+            auth: .apiToken(bizEventToken)
+            // eventProvider and defaultEventType will use default values from BusinessEventsClient
+        )
         CrashReporterKit.shared.enable()
-        
-        let attributes = [
-            "payment.amount": AnyEncodable(20)
-        ]
-        BusinessEventsClient.shared.beginAction(BusinessEventsClient.BeginOptions.init(name: "myAction", attributes: attributes, parentActionId: nil))
         
         // Log call updated to use logger
         #if canImport(UIKit)
@@ -128,7 +184,6 @@ public final class PaymentClient {
         PaymentClient.logger.info("PaymentClient init")
         #endif
     }
-    
 
     // MARK: - API pública
     public func receivePayment(
@@ -156,21 +211,29 @@ public final class PaymentClient {
                 fatalError("Simulated Payment Library Crash")
             }
 
-            Task {
-                PaymentClient.logger.info("Calling executePayment asynchronously.")
-                try await executePayment(
-                    amount: amount,
-                    creditCardNumber: creditCardNumber,
-                    vendorName: vendorName,
-                    vendorId: vendorId,
-                    callback: callback
-                )
-                PaymentClient.logger.verbose("Starting to sleep...")
-                let randomNumber: UInt32 = UInt32(Int.random(in: 700...3000))
-                sleep(randomNumber)
-                PaymentClient.logger.verbose("Finished sleeping.")
-                
-            }
+            // Execute both executePayment and dummyDoSomething in parallel
+            PaymentClient.logger.info("Starting executePayment and dummyDoSomething in parallel.")
+            
+            async let paymentResult: Void = executePayment(
+                amount: amount,
+                creditCardNumber: creditCardNumber,
+                vendorName: vendorName,
+                vendorId: vendorId,
+                callback: callback
+            )
+            
+            async let dummyResult: Void = dummyDoSomething()
+            
+            // Wait for both operations to complete
+            try await paymentResult
+            try await dummyResult
+            
+            PaymentClient.logger.info("Both executePayment and dummyDoSomething completed.")
+            
+            PaymentClient.logger.verbose("Starting to sleep...")
+            let randomNumber: UInt32 = UInt32(Int.random(in: 700...3000))
+            try await Task.sleep(nanoseconds: UInt64(randomNumber) * 1_000_000)
+            PaymentClient.logger.verbose("Finished sleeping.")
         }
     }
 
@@ -204,7 +267,7 @@ public final class PaymentClient {
             PaymentClient.logger.debug("Inside executePayment method implementation.")
             PaymentClient.logger.verbose("Starting to sleep for latency simulation...")
             let randomNumber: UInt32 = UInt32(Int.random(in: 700...3000))
-            sleep(randomNumber)
+            try await Task.sleep(nanoseconds: UInt64(randomNumber) * 1_000_000)
             PaymentClient.logger.verbose("Finished sleeping.")
             
             if baseUrl == "TEST_ONLY" {
@@ -310,6 +373,43 @@ public final class PaymentClient {
                 callback.onCancellationFailure(error: error.localizedDescription)
                 PaymentClient.logger.error("Cancellation network request failed: \(error.localizedDescription)")
             }
+        }
+    }
+
+    private func dummyDoSomething() async throws{
+        try await BusinessEventsClient.shared.withAction(
+            name: "dummyDoSomething"
+        ) {
+            PaymentClient.logger.verbose("Started dummyDoSomething.")
+            let randomNumber: UInt32 = UInt32(Int.random(in: 700...3000))
+            try await Task.sleep(nanoseconds: UInt64(randomNumber) * 1_000_000)
+            try await dummyDoSomethingElse()
+            PaymentClient.logger.verbose("Finished dummyDoSomething.")
+        }
+
+        // This is a dummy method to illustrate additional private methods can be added here
+    }
+
+    private func dummyDoSomethingElse() async throws{
+        try await BusinessEventsClient.shared.withAction(
+            name: "dummyDoSomethingElse"
+        ) {
+            PaymentClient.logger.verbose("Started dummyDoSomethingElse.")
+            let randomNumber: UInt32 = UInt32(Int.random(in: 700...3000))
+            try await Task.sleep(nanoseconds: UInt64(randomNumber) * 1_000_000)
+            try await dummyDoSomethingMore()
+            PaymentClient.logger.verbose("Finished dummyDoSomethingElse.")
+        }
+    }
+
+    private func dummyDoSomethingMore() async throws{
+        try await BusinessEventsClient.shared.withAction(
+            name: "dummyDoSomethingMore"
+        ) {
+            PaymentClient.logger.verbose("Started dummyDoSomethingMore.")
+            let randomNumber: UInt32 = UInt32(Int.random(in: 700...3000))
+            try await Task.sleep(nanoseconds: UInt64(randomNumber) * 1_000_000)
+            PaymentClient.logger.verbose("Finished dummyDoSomethingMore.")
         }
     }
 }
