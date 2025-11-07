@@ -8,6 +8,7 @@ import java.io.PrintWriter
 import java.io.StringWriter
 import java.util.*
 import kotlin.system.exitProcess
+import kotlinx.coroutines.runBlocking
 class PaymentCrashHandler(private val context: Context, private val originalHandler: Thread.UncaughtExceptionHandler?) : Thread.UncaughtExceptionHandler {
 
     companion object {
@@ -28,44 +29,65 @@ class PaymentCrashHandler(private val context: Context, private val originalHand
             throwable.printStackTrace(pw)
             val stackTrace = sw.toString()
             val description = throwable.message
+            val extraAttributes = mapOf(
+                "crash.class" to throwable.javaClass.simpleName,
+                "crash.stackTrace" to stackTrace,
+                "device" to android.os.Build.MODEL
+            )
+            // Get current action context for parentActionId and sessionId
+            val actionContext = BusinessEventsClient.getCurrentActionContext()
+            val parentActionId = actionContext?.parentActionId
+            val sessionId = BusinessEventsClient.sessionId
             
-            // Log crash using DynatraceLogger (which sends to Dynatrace Log Ingest API)
-            DynatraceLogger.error("Crash reported - Class: ${throwable.javaClass.simpleName}, Description: $description, StackTrace: $stackTrace", "PaymentCrashHandler", throwable)
+            // Use runBlocking to ensure crash report is sent before app terminates
+            try {
+                runBlocking {
+                    BusinessEventsClient.sendCrashReport(
+                        parentActionId = parentActionId,
+                        sessionId = sessionId,
+                        error = description,
+                        extraAttributes = extraAttributes
+                    )
+                }
+                Log.i("PaymentCrashHandler", "Crash report sent successfully")
+            } catch (e: Exception) {
+                Log.e("PaymentCrashHandler", "Failed to send crash report: ${e.message}", e)
+            }
         }
     }
 
     override fun uncaughtException(thread: Thread, throwable: Throwable) {
-        // 1. Collect and serialize crash data
+        Log.i("PaymentCrashHandler", "Uncaught exception occurred: ${throwable.javaClass.simpleName}")
+        
+        // 1. Send crash report to Dynatrace (blocking operation)
+        reportCrash(throwable)
+        
+        // 2. Collect and serialize crash data for file storage
         val sw = StringWriter()
         val pw = PrintWriter(sw)
         throwable.printStackTrace(pw)
         val stackTrace = sw.toString()
         val description = throwable.message
         
-        Log.i("PaymentCrashHandler", "Uncaught exception occurred")
-        
-        // Report crash using the new method
-        reportCrash(throwable)
-
         val crashInfo = "Timestamp: ${Date()}\n" +
                 "Device: ${android.os.Build.MODEL}\n" +
                 "Exception Class: ${throwable.javaClass.simpleName}\n" +
                 "Description: $description\n" +
                 "Stack Trace:\n$stackTrace"
 
-        // 2. Write to a file
+        // 3. Write to a file
         try {
             val filename = "payment_crash_report_${System.currentTimeMillis()}.log"
             val file = File(context.filesDir, filename)
             FileOutputStream(file).use {
                 it.write(crashInfo.toByteArray())
             }
-            Log.d("PaymentLibrary", "Crash report saved to ${file.absolutePath}")
+            Log.d("PaymentCrashHandler", "Crash report saved to ${file.absolutePath}")
         } catch (e: Exception) {
-            Log.e("PaymentLibrary", "Failed to save crash report", e)
+            Log.e("PaymentCrashHandler", "Failed to save crash report", e)
         }
 
-        // 3. Call the original handler to ensure other crash reporters work
+        // 4. Call the original handler to ensure other crash reporters work
         originalHandler?.uncaughtException(thread, throwable)
             ?: exitProcess(1)
     }

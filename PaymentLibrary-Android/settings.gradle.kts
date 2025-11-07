@@ -14,8 +14,8 @@ pluginManagement {
     }
     // A declaração de plugins aqui garante que o Gradle possa encontrar os plugins Android
     plugins {
-        id("com.android.application") version "8.11.1"
-        id("com.android.library") version "8.11.1"
+        id("com.android.application") version "8.11.2"
+        id("com.android.library") version "8.11.2"
         id("org.jetbrains.kotlin.android") version "2.2.0"
         id("com.github.kezong.fat-aar") version "1.3.8"
     }

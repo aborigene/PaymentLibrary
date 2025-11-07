@@ -10,6 +10,7 @@
 		091DC6872E71EAB60020EC9B /* BusinessEventsClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 091DC6862E71EAB60020EC9B /* BusinessEventsClient.swift */; };
 		091DC6A42E747B720020EC9B /* CrashReporterKit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 091DC6A32E747B720020EC9B /* CrashReporterKit.swift */; };
 		091DC6AC2E749FAD0020EC9B /* SwiftyBeaverDynatraceLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 091DC6AB2E749FAD0020EC9B /* SwiftyBeaverDynatraceLogger.swift */; };
+		0964B8AB2EA975F70012F96F /* DeviceMetadataCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0964B8AA2EA975F70012F96F /* DeviceMetadataCollector.swift */; };
 		097E95612E96D4850075BB48 /* Base64.swift in Sources */ = {isa = PBXBuildFile; fileRef = 097E95602E96D4850075BB48 /* Base64.swift */; };
 		097E956A2E96D49E0075BB48 /* Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 097E95642E96D49E0075BB48 /* Extensions.swift */; };
 		097E956B2E96D49E0075BB48 /* BaseDestination.swift in Sources */ = {isa = PBXBuildFile; fileRef = 097E95622E96D49E0075BB48 /* BaseDestination.swift */; };
@@ -40,6 +41,7 @@
 		091DC6862E71EAB60020EC9B /* BusinessEventsClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BusinessEventsClient.swift; sourceTree = "<group>"; };
 		091DC6A32E747B720020EC9B /* CrashReporterKit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashReporterKit.swift; sourceTree = "<group>"; };
 		091DC6AB2E749FAD0020EC9B /* SwiftyBeaverDynatraceLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftyBeaverDynatraceLogger.swift; sourceTree = "<group>"; };
+		0964B8AA2EA975F70012F96F /* DeviceMetadataCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceMetadataCollector.swift; sourceTree = "<group>"; };
 		097E95602E96D4850075BB48 /* Base64.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Base64.swift; sourceTree = "<group>"; };
 		097E95622E96D49E0075BB48 /* BaseDestination.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BaseDestination.swift; sourceTree = "<group>"; };
 		097E95632E96D49E0075BB48 /* ConsoleDestination.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsoleDestination.swift; sourceTree = "<group>"; };
@@ -130,6 +132,7 @@
 		09D55E172E71CA9E0086F181 /* PaymentLibrary */ = {
 			isa = PBXGroup;
 			children = (
+				0964B8AA2EA975F70012F96F /* DeviceMetadataCollector.swift */,
 				097E95A42E986A890075BB48 /* Secrets.swift */,
 				097E95742E96EC070075BB48 /* PaymentClient.swift */,
 				091DC6AB2E749FAD0020EC9B /* SwiftyBeaverDynatraceLogger.swift */,
@@ -262,6 +265,7 @@
 				097E956A2E96D49E0075BB48 /* Extensions.swift in Sources */,
 				097E95A52E986A890075BB48 /* Secrets.swift in Sources */,
 				097E95752E96EC070075BB48 /* PaymentClient.swift in Sources */,
+				0964B8AB2EA975F70012F96F /* DeviceMetadataCollector.swift in Sources */,
 				097E956B2E96D49E0075BB48 /* BaseDestination.swift in Sources */,
 				097E956C2E96D49E0075BB48 /* FilterValidator.swift in Sources */,
 				097E956D2E96D49E0075BB48 /* ConsoleDestination.swift in Sources */,

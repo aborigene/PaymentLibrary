@@ -1,0 +1,324 @@
+// swift-interface-format-version: 1.0
+// swift-compiler-version: Apple Swift version 6.1.2 effective-5.10 (swiftlang-6.1.2.1.2 clang-1700.0.13.5)
+// swift-module-flags: -target arm64-apple-ios18.5-simulator -enable-objc-interop -enable-library-evolution -swift-version 5 -enforce-exclusivity=checked -O -enable-experimental-feature DebugDescriptionMacro -enable-bare-slash-regex -module-name PaymentLibrary
+// swift-module-flags-ignorable:  -interface-compiler-version 6.1.2
+import CoreTelephony
+import Dispatch
+import Foundation
+import Network
+import OSLog
+import Security
+import Swift
+import SystemConfiguration
+import UIKit
+import _Concurrency
+import _StringProcessing
+import _SwiftConcurrencyShims
+import os.log
+import os
+public protocol PaymentCallback : AnyObject {
+  func onPaymentSuccess(transactionId: Swift.String)
+  func onPaymentFailure(error: Swift.String)
+}
+public protocol CancellationCallback : AnyObject {
+  func onCancellationSuccess()
+  func onCancellationFailure(error: Swift.String)
+}
+@_hasMissingDesignatedInitializers final public class PaymentClient {
+  public static var shared: PaymentLibrary.PaymentClient {
+    get
+  }
+  final public func configureBusinessEvents(endpoint: Foundation.URL, auth: PaymentLibrary.BusinessEventsClient.Auth, eventProvider: Swift.String? = nil)
+  final public func configureBusinessEventsWithDeviceMetadata(endpoint: Foundation.URL, auth: PaymentLibrary.BusinessEventsClient.Auth, eventProvider: Swift.String? = nil)
+  @discardableResult
+  public static func getInstance(baseUrl: Swift.String) -> PaymentLibrary.PaymentClient
+  @discardableResult
+  public static func getInstanceWithEnhancedMetadata(baseUrl: Swift.String, dynatraceEndpoint: Foundation.URL? = nil, dynatraceToken: Swift.String? = nil, eventProvider: Swift.String? = nil) -> PaymentLibrary.PaymentClient
+  final public func receivePayment(amount: Swift.Double, creditCardNumber: Swift.String, vendorName: Swift.String, vendorId: Swift.String, callback: any PaymentLibrary.PaymentCallback, crashStatus: Swift.Bool) async throws
+  final public func cancelPayment(transactionId: Swift.String, callback: any PaymentLibrary.CancellationCallback)
+  @objc deinit
+}
+@_hasMissingDesignatedInitializers public class DeviceMetadataCollector {
+  public struct DeviceMetadata {
+    public let deviceManufacturer: Swift.String
+    public let deviceModel: Swift.String
+    public let deviceName: Swift.String
+    public let deviceSystemName: Swift.String
+    public let deviceSystemVersion: Swift.String
+    public let deviceIdentifierForVendor: Swift.String?
+    public let screenWidth: Swift.Double
+    public let screenHeight: Swift.Double
+    public let screenScale: Swift.Double
+    public let screenBounds: Swift.String
+    public let osVersion: Swift.String
+    public let osVersionCode: Swift.String
+    public let buildVersion: Swift.String
+    public let kernelVersion: Swift.String
+    public let memoryTotal: Swift.UInt64
+    public let memoryAvailable: Swift.UInt64
+    public let storageTotal: Swift.UInt64
+    public let storageAvailable: Swift.UInt64
+    public let networkType: Swift.String
+    public let carrierName: Swift.String?
+    public let carrierCountryCode: Swift.String?
+    public let ispName: Swift.String?
+    public let deviceIpAddress: Swift.String?
+    public let deviceLocale: Swift.String
+    public let deviceTimezone: Swift.String
+    public let batteryLevel: Swift.Float
+    public let batteryState: Swift.String
+    public let isLowPowerModeEnabled: Swift.Bool
+    public let processorCount: Swift.Int
+    public let thermalState: Swift.String
+    public init(deviceManufacturer: Swift.String, deviceModel: Swift.String, deviceName: Swift.String, deviceSystemName: Swift.String, deviceSystemVersion: Swift.String, deviceIdentifierForVendor: Swift.String?, screenWidth: Swift.Double, screenHeight: Swift.Double, screenScale: Swift.Double, screenBounds: Swift.String, osVersion: Swift.String, osVersionCode: Swift.String, buildVersion: Swift.String, kernelVersion: Swift.String, memoryTotal: Swift.UInt64, memoryAvailable: Swift.UInt64, storageTotal: Swift.UInt64, storageAvailable: Swift.UInt64, networkType: Swift.String, carrierName: Swift.String?, carrierCountryCode: Swift.String?, ispName: Swift.String?, deviceIpAddress: Swift.String?, deviceLocale: Swift.String, deviceTimezone: Swift.String, batteryLevel: Swift.Float, batteryState: Swift.String, isLowPowerModeEnabled: Swift.Bool, processorCount: Swift.Int, thermalState: Swift.String)
+  }
+  public static func collectMetadata() -> PaymentLibrary.DeviceMetadataCollector.DeviceMetadata
+  public static func formatDeviceInfo(_ metadata: PaymentLibrary.DeviceMetadataCollector.DeviceMetadata) -> Swift.String
+  public static func collectDynamicMetadata() -> [Swift.String : Any]
+  public static func collectStaticMetadata() -> [Swift.String : Any]
+  public static func toEventAttributes(_ metadata: PaymentLibrary.DeviceMetadataCollector.DeviceMetadata) -> [Swift.String : Any]
+  @objc deinit
+}
+open class BaseDestination : Swift.Hashable, Swift.Equatable {
+  open var format: Swift.String
+  open var asynchronously: Swift.Bool
+  open var minLevel: PaymentLibrary.SwiftyBeaver.Level
+  open var levelString: PaymentLibrary.BaseDestination.LevelString
+  open var levelColor: PaymentLibrary.BaseDestination.LevelColor
+  open var calendar: Foundation.Calendar
+  public struct LevelString {
+    public var verbose: Swift.String
+    public var debug: Swift.String
+    public var info: Swift.String
+    public var warning: Swift.String
+    public var error: Swift.String
+    public var critical: Swift.String
+    public var fault: Swift.String
+  }
+  public struct LevelColor {
+    public var verbose: Swift.String
+    public var debug: Swift.String
+    public var info: Swift.String
+    public var warning: Swift.String
+    public var error: Swift.String
+    public var critical: Swift.String
+    public var fault: Swift.String
+  }
+  public func hash(into hasher: inout Swift.Hasher)
+  open var defaultHashValue: Swift.Int {
+    get
+  }
+  public init()
+  open func send(_ level: PaymentLibrary.SwiftyBeaver.Level, msg: Swift.String, thread: Swift.String, file: Swift.String, function: Swift.String, line: Swift.Int, context: Any? = nil) -> Swift.String?
+  public func execute(synchronously: Swift.Bool, block: @escaping () -> Swift.Void)
+  public func executeSynchronously<T>(block: @escaping () throws -> T) rethrows -> T
+  public func addFilter(_ filter: any PaymentLibrary.FilterType)
+  public func removeFilter(_ filter: any PaymentLibrary.FilterType)
+  @objc deinit
+  open var hashValue: Swift.Int {
+    get
+  }
+}
+public func == (lhs: PaymentLibrary.BaseDestination, rhs: PaymentLibrary.BaseDestination) -> Swift.Bool
+@_inheritsConvenienceInitializers open class ConsoleDestination : PaymentLibrary.BaseDestination {
+  public enum LogPrintWay {
+    case logger(subsystem: Swift.String, category: Swift.String)
+    case nslog
+    case print
+  }
+  public var logPrintWay: PaymentLibrary.ConsoleDestination.LogPrintWay
+  public var useNSLog: Swift.Bool {
+    get
+    set
+  }
+  public var useTerminalColors: Swift.Bool {
+    get
+    set
+  }
+  override public var defaultHashValue: Swift.Int {
+    get
+  }
+  override public init()
+  override open func send(_ level: PaymentLibrary.SwiftyBeaver.Level, msg: Swift.String, thread: Swift.String, file: Swift.String, function: Swift.String, line: Swift.Int, context: Any? = nil) -> Swift.String?
+  @objc deinit
+}
+public protocol FilterType : AnyObject {
+  func apply(_ value: Swift.String?) -> Swift.Bool
+  func getTarget() -> PaymentLibrary.Filter.TargetType
+  func isRequired() -> Swift.Bool
+  func isExcluded() -> Swift.Bool
+  func reachedMinLevel(_ level: PaymentLibrary.SwiftyBeaver.Level) -> Swift.Bool
+}
+@_hasMissingDesignatedInitializers public class Filters {
+  public static let Path: PaymentLibrary.PathFilterFactory.Type
+  public static let Function: PaymentLibrary.FunctionFilterFactory.Type
+  public static let Message: PaymentLibrary.MessageFilterFactory.Type
+  @objc deinit
+}
+public class Filter {
+  public enum TargetType {
+    case Path(PaymentLibrary.Filter.ComparisonType)
+    case Function(PaymentLibrary.Filter.ComparisonType)
+    case Message(PaymentLibrary.Filter.ComparisonType)
+  }
+  public enum ComparisonType {
+    case StartsWith([Swift.String], Swift.Bool)
+    case Contains([Swift.String], Swift.Bool)
+    case Excludes([Swift.String], Swift.Bool)
+    case EndsWith([Swift.String], Swift.Bool)
+    case Equals([Swift.String], Swift.Bool)
+    case Custom((Swift.String) -> Swift.Bool)
+  }
+  public init(_ target: PaymentLibrary.Filter.TargetType, required: Swift.Bool, minLevel: PaymentLibrary.SwiftyBeaver.Level)
+  public func getTarget() -> PaymentLibrary.Filter.TargetType
+  public func isRequired() -> Swift.Bool
+  public func isExcluded() -> Swift.Bool
+  public func reachedMinLevel(_ level: PaymentLibrary.SwiftyBeaver.Level) -> Swift.Bool
+  @objc deinit
+}
+@_inheritsConvenienceInitializers public class CompareFilter : PaymentLibrary.Filter, PaymentLibrary.FilterType {
+  override public init(_ target: PaymentLibrary.Filter.TargetType, required: Swift.Bool, minLevel: PaymentLibrary.SwiftyBeaver.Level)
+  public func apply(_ value: Swift.String?) -> Swift.Bool
+  override public func isExcluded() -> Swift.Bool
+  @objc deinit
+}
+@_hasMissingDesignatedInitializers public class FunctionFilterFactory {
+  public static func startsWith(_ prefixes: Swift.String..., caseSensitive: Swift.Bool = false, required: Swift.Bool = false, minLevel: PaymentLibrary.SwiftyBeaver.Level = .verbose) -> any PaymentLibrary.FilterType
+  public static func contains(_ strings: Swift.String..., caseSensitive: Swift.Bool = false, required: Swift.Bool = false, minLevel: PaymentLibrary.SwiftyBeaver.Level = .verbose) -> any PaymentLibrary.FilterType
+  public static func excludes(_ strings: Swift.String..., caseSensitive: Swift.Bool = false, required: Swift.Bool = false, minLevel: PaymentLibrary.SwiftyBeaver.Level = .verbose) -> any PaymentLibrary.FilterType
+  public static func endsWith(_ suffixes: Swift.String..., caseSensitive: Swift.Bool = false, required: Swift.Bool = false, minLevel: PaymentLibrary.SwiftyBeaver.Level = .verbose) -> any PaymentLibrary.FilterType
+  public static func equals(_ strings: Swift.String..., caseSensitive: Swift.Bool = false, required: Swift.Bool = false, minLevel: PaymentLibrary.SwiftyBeaver.Level = .verbose) -> any PaymentLibrary.FilterType
+  public static func custom(required: Swift.Bool = false, minLevel: PaymentLibrary.SwiftyBeaver.Level = .verbose, filterPredicate: @escaping (Swift.String) -> Swift.Bool) -> any PaymentLibrary.FilterType
+  @objc deinit
+}
+@_hasMissingDesignatedInitializers public class MessageFilterFactory {
+  public static func startsWith(_ prefixes: Swift.String..., caseSensitive: Swift.Bool = false, required: Swift.Bool = false, minLevel: PaymentLibrary.SwiftyBeaver.Level = .verbose) -> any PaymentLibrary.FilterType
+  public static func contains(_ strings: Swift.String..., caseSensitive: Swift.Bool = false, required: Swift.Bool = false, minLevel: PaymentLibrary.SwiftyBeaver.Level = .verbose) -> any PaymentLibrary.FilterType
+  public static func excludes(_ strings: Swift.String..., caseSensitive: Swift.Bool = false, required: Swift.Bool = false, minLevel: PaymentLibrary.SwiftyBeaver.Level = .verbose) -> any PaymentLibrary.FilterType
+  public static func endsWith(_ suffixes: Swift.String..., caseSensitive: Swift.Bool = false, required: Swift.Bool = false, minLevel: PaymentLibrary.SwiftyBeaver.Level = .verbose) -> any PaymentLibrary.FilterType
+  public static func equals(_ strings: Swift.String..., caseSensitive: Swift.Bool = false, required: Swift.Bool = false, minLevel: PaymentLibrary.SwiftyBeaver.Level = .verbose) -> any PaymentLibrary.FilterType
+  public static func custom(required: Swift.Bool = false, minLevel: PaymentLibrary.SwiftyBeaver.Level = .verbose, filterPredicate: @escaping (Swift.String) -> Swift.Bool) -> any PaymentLibrary.FilterType
+  @objc deinit
+}
+@_hasMissingDesignatedInitializers public class PathFilterFactory {
+  public static func startsWith(_ prefixes: Swift.String..., caseSensitive: Swift.Bool = false, required: Swift.Bool = false, minLevel: PaymentLibrary.SwiftyBeaver.Level = .verbose) -> any PaymentLibrary.FilterType
+  public static func contains(_ strings: Swift.String..., caseSensitive: Swift.Bool = false, required: Swift.Bool = false, minLevel: PaymentLibrary.SwiftyBeaver.Level = .verbose) -> any PaymentLibrary.FilterType
+  public static func excludes(_ strings: Swift.String..., caseSensitive: Swift.Bool = false, required: Swift.Bool = false, minLevel: PaymentLibrary.SwiftyBeaver.Level = .verbose) -> any PaymentLibrary.FilterType
+  public static func endsWith(_ suffixes: Swift.String..., caseSensitive: Swift.Bool = false, required: Swift.Bool = false, minLevel: PaymentLibrary.SwiftyBeaver.Level = .verbose) -> any PaymentLibrary.FilterType
+  public static func equals(_ strings: Swift.String..., caseSensitive: Swift.Bool = false, required: Swift.Bool = false, minLevel: PaymentLibrary.SwiftyBeaver.Level = .verbose) -> any PaymentLibrary.FilterType
+  public static func custom(required: Swift.Bool = false, minLevel: PaymentLibrary.SwiftyBeaver.Level = .verbose, filterPredicate: @escaping (Swift.String) -> Swift.Bool) -> any PaymentLibrary.FilterType
+  @objc deinit
+}
+extension PaymentLibrary.Filter.TargetType : Swift.Equatable {
+}
+public func == (lhs: PaymentLibrary.Filter.TargetType, rhs: PaymentLibrary.Filter.TargetType) -> Swift.Bool
+final public class GoogleCloudDestination : PaymentLibrary.BaseDestination {
+  public init(serviceName: Swift.String)
+  override final public var asynchronously: Swift.Bool {
+    get
+    set
+  }
+  override final public func send(_ level: PaymentLibrary.SwiftyBeaver.Level, msg: Swift.String, thread: Swift.String, file: Swift.String, function: Swift.String, line: Swift.Int, context: Any? = nil) -> Swift.String?
+  @objc deinit
+}
+@_hasMissingDesignatedInitializers open class SwiftyBeaver {
+  public static let version: Swift.String
+  public static let build: Swift.Int
+  public enum Level : Swift.Int {
+    case verbose
+    case debug
+    case info
+    case warning
+    case error
+    case critical
+    case fault
+    public init?(rawValue: Swift.Int)
+    public typealias RawValue = Swift.Int
+    public var rawValue: Swift.Int {
+      get
+    }
+  }
+  public static var destinations: Swift.Set<PaymentLibrary.BaseDestination> {
+    get
+  }
+  @discardableResult
+  open class func addDestination(_ destination: PaymentLibrary.BaseDestination) -> Swift.Bool
+  @discardableResult
+  open class func removeDestination(_ destination: PaymentLibrary.BaseDestination) -> Swift.Bool
+  open class func removeAllDestinations()
+  open class func countDestinations() -> Swift.Int
+  open class func threadName() -> Swift.String
+  open class func verbose(_ message: @autoclosure () -> Any, file: Swift.String = #file, function: Swift.String = #function, line: Swift.Int = #line, context: Any? = nil)
+  open class func debug(_ message: @autoclosure () -> Any, file: Swift.String = #file, function: Swift.String = #function, line: Swift.Int = #line, context: Any? = nil)
+  open class func info(_ message: @autoclosure () -> Any, file: Swift.String = #file, function: Swift.String = #function, line: Swift.Int = #line, context: Any? = nil)
+  open class func warning(_ message: @autoclosure () -> Any, file: Swift.String = #file, function: Swift.String = #function, line: Swift.Int = #line, context: Any? = nil)
+  open class func error(_ message: @autoclosure () -> Any, file: Swift.String = #file, function: Swift.String = #function, line: Swift.Int = #line, context: Any? = nil)
+  open class func critical(_ message: @autoclosure () -> Any, file: Swift.String = #file, function: Swift.String = #function, line: Swift.Int = #line, context: Any? = nil)
+  open class func fault(_ message: @autoclosure () -> Any, file: Swift.String = #file, function: Swift.String = #function, line: Swift.Int = #line, context: Any? = nil)
+  open class func custom(level: PaymentLibrary.SwiftyBeaver.Level, message: @autoclosure () -> Any, file: Swift.String = #file, function: Swift.String = #function, line: Swift.Int = #line, context: Any? = nil)
+  public class func flush(secondTimeout: Swift.Int64) -> Swift.Bool
+  @objc deinit
+}
+@available(iOS 8.0, macOS 10.10, tvOS 9.0, watchOS 2.0, *)
+extension PaymentLibrary.SwiftyBeaver.Level : Swift.Sendable {
+}
+open class FileDestination : PaymentLibrary.BaseDestination {
+  public var logFileURL: Foundation.URL?
+  public var syncAfterEachWrite: Swift.Bool
+  public var colored: Swift.Bool {
+    get
+    set
+  }
+  public var logFileMaxSize: Swift.Int
+  public var logFileAmount: Swift.Int
+  override public var defaultHashValue: Swift.Int {
+    get
+  }
+  public init(logFileURL: Foundation.URL? = nil)
+  override open func send(_ level: PaymentLibrary.SwiftyBeaver.Level, msg: Swift.String, thread: Swift.String, file: Swift.String, function: Swift.String, line: Swift.Int, context: Any? = nil) -> Swift.String?
+  public func deleteLogFile() -> Swift.Bool
+  @objc deinit
+}
+@_hasMissingDesignatedInitializers final public class BusinessEventsClient {
+  public static let shared: PaymentLibrary.BusinessEventsClient
+  public static let defaultEventType: Swift.String
+  public static let defaultEventProvider: Swift.String
+  public enum Auth {
+    case apiToken(Swift.String)
+    case bearer(Swift.String)
+  }
+  public struct Config {
+    public var endpoint: Foundation.URL
+    public var auth: PaymentLibrary.BusinessEventsClient.Auth
+    public var eventProvider: Swift.String
+    public var defaultEventType: Swift.String
+    public var appVersion: Swift.String?
+    public var deviceInfo: Swift.String?
+    public var deviceMetadata: PaymentLibrary.DeviceMetadataCollector.DeviceMetadata?
+    public init(endpoint: Foundation.URL, auth: PaymentLibrary.BusinessEventsClient.Auth, eventProvider: Swift.String, defaultEventType: Swift.String, appVersion: Swift.String? = nil, deviceInfo: Swift.String? = nil, deviceMetadata: PaymentLibrary.DeviceMetadataCollector.DeviceMetadata? = nil)
+  }
+  public struct BeginOptions {
+    public var name: Swift.String
+    public var attributes: [Swift.String : PaymentLibrary.AnyEncodable]
+    public var parentActionId: Foundation.UUID?
+    public init(name: Swift.String, attributes: [Swift.String : PaymentLibrary.AnyEncodable] = [:], parentActionId: Foundation.UUID? = nil)
+  }
+  final public func configure(_ config: PaymentLibrary.BusinessEventsClient.Config)
+  final public func configure(endpoint: Foundation.URL, auth: PaymentLibrary.BusinessEventsClient.Auth, eventProvider: Swift.String? = nil, appVersion: Swift.String? = nil, deviceInfo: Swift.String? = nil)
+  final public func configureWithDeviceMetadata(endpoint: Foundation.URL, auth: PaymentLibrary.BusinessEventsClient.Auth, eventProvider: Swift.String? = nil, appVersion: Swift.String? = nil)
+  @discardableResult
+  final public func beginAction(_ opts: PaymentLibrary.BusinessEventsClient.BeginOptions) -> Foundation.UUID
+  final public func endAction(_ actionId: Foundation.UUID, status: Swift.String = "SUCCESS", error: Swift.String? = nil, extraAttributes: [Swift.String : PaymentLibrary.AnyEncodable] = [:]) async throws
+  final public func withAction<T>(name: Swift.String, attributes: [Swift.String : PaymentLibrary.AnyEncodable] = [:], parentActionId: Foundation.UUID? = nil, body: () async throws -> T) async throws -> T
+  public enum ClientError : Swift.Error {
+    case notConfigured, unknownAction, badResponse(Swift.Int)
+  }
+  @objc deinit
+}
+public struct AnyEncodable : Swift.Encodable {
+  public init<T>(_ wrapped: T) where T : Swift.Encodable
+  public func encode(to encoder: any Swift.Encoder) throws
+}
+extension PaymentLibrary.SwiftyBeaver.Level : Swift.Equatable {}
+extension PaymentLibrary.SwiftyBeaver.Level : Swift.Hashable {}
+extension PaymentLibrary.SwiftyBeaver.Level : Swift.RawRepresentable {}
