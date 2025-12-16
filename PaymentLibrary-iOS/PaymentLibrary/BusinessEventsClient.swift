@@ -37,7 +37,7 @@ public final class BusinessEventsClient {
     
     // Session management
     private var hasSessionStarted = false
-    private var sessionId: String = UUID().uuidString
+    public private(set) var sessionId: String = UUID().uuidString // Exposed for crash reporting
     private var sessionActionId: UUID?
     
     // Task-local storage for thread-safe action tracking
@@ -281,17 +281,98 @@ public final class BusinessEventsClient {
         }
     }
 
+    // MARK: - Crash Reporting
+    
+    /// Returns the current action context if available (for crash reporting).
+    public func getCurrentActionContext() -> ActionContext? {
+        return store.getLastActionContext()
+    }
+    
+    /// Sends a crash report as a business event to Dynatrace.
+    /// - Parameters:
+    ///   - parentActionId: Optional parent action UUID
+    ///   - sessionId: Session ID string
+    ///   - error: Error message or description
+    ///   - extraAttributes: Additional attributes to include in the event
+    public func sendCrashReport(
+        parentActionId: UUID?,
+        sessionId: String?,
+        error: String?,
+        extraAttributes: [String: AnyEncodable] = [:]
+    ) async throws {
+        guard let cfg = config else { throw ClientError.notConfigured }
+        
+        let now = Date()
+        var data: [String: AnyEncodable] = [:]
+        
+        data["action.id"] = AnyEncodable(UUID().uuidString)
+        if let parentId = parentActionId {
+            data["action.parentId"] = AnyEncodable(parentId.uuidString)
+        }
+        if let session = sessionId {
+            data["session.id"] = AnyEncodable(session)
+        }
+        if let errorMsg = error {
+            data["action.error"] = AnyEncodable(errorMsg)
+        }
+        
+        // Merge extra attributes
+        data.merge(extraAttributes) { _, new in new }
+        
+        // Add app version and device info if available
+        if let v = cfg.appVersion {
+            data["app.version"] = AnyEncodable(v)
+        }
+        if let d = cfg.deviceInfo {
+            data["device.info"] = AnyEncodable(d)
+        }
+        
+        // Add device metadata attributes if available
+        if let metadata = cfg.deviceMetadata {
+            let deviceAttributes = DeviceMetadataCollector.toEventAttributes(metadata)
+            for (key, value) in deviceAttributes {
+                // Convert Any to AnyEncodable based on runtime type
+                if let stringValue = value as? String {
+                    data[key] = AnyEncodable(stringValue)
+                } else if let intValue = value as? Int {
+                    data[key] = AnyEncodable(intValue)
+                } else if let doubleValue = value as? Double {
+                    data[key] = AnyEncodable(doubleValue)
+                } else if let boolValue = value as? Bool {
+                    data[key] = AnyEncodable(boolValue)
+                } else {
+                    data[key] = AnyEncodable(String(describing: value))
+                }
+            }
+        }
+        
+        let eventType = "custom.rum.sdk.crash"
+        let eventProvider = cfg.eventProvider.isEmpty ? "Custom RUM Application" : cfg.eventProvider
+        
+        let event = CloudEvent(
+            specversion: "1.0",
+            id: UUID().uuidString,
+            source: eventProvider,
+            type: eventType,
+            time: ISO8601DateFormatter.dtTime.string(from: now),
+            traceparent: nil,
+            data: data
+        )
+        
+        try await send(event: event, config: cfg)
+    }
+
     // MARK: - Internals
 
     public enum ClientError: Error { case notConfigured, unknownAction, badResponse(Int) }
 
-    fileprivate struct ActionContext {
-        let id: UUID
-        let name: String
-        let startedAt: Date
-        let attributes: [String: AnyEncodable]
-        let parentActionId: UUID?
-        let eventType: String
+    public struct ActionContext {
+        public let id: UUID
+        public let name: String
+        public let startedAt: Date
+        public let attributes: [String: AnyEncodable]
+        public let parentActionId: UUID?
+        public let eventType: String
     }
 
     private var config: Config?
@@ -417,6 +498,9 @@ private final class InMemoryStore {
     public func insert(_ ctx: BusinessEventsClient.ActionContext) { q.sync { dict[ctx.id] = ctx } }
     public func lookup(id: UUID) -> BusinessEventsClient.ActionContext? { q.sync { dict[id] } }
     public func remove(id: UUID) -> BusinessEventsClient.ActionContext? { q.sync { dict.removeValue(forKey: id) } }
+    public func getLastActionContext() -> BusinessEventsClient.ActionContext? {
+        q.sync { dict.values.sorted { $0.startedAt > $1.startedAt }.first }
+    }
 }
 
 // MARK: - AnyEncodable helper
