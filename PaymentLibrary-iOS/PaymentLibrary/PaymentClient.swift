@@ -208,6 +208,17 @@ public final class PaymentClient {
 
             if crashStatus {
                 PaymentClient.logger.error("Simulating crash on purpose.")
+                
+                // Report the crash BEFORE it happens, then trigger NSException
+                // fatalError() doesn't reliably trigger crash handlers, so we use NSException instead
+                let exception = NSException(
+                    name: NSExceptionName("SimulatedCrash"),
+                    reason: "Simulated Payment Library Crash - Testing crash reporting",
+                    userInfo: ["crash.intentional": true]
+                )
+                exception.raise()
+                
+                // This won't be reached, but kept for safety
                 fatalError("Simulated Payment Library Crash")
             }
 

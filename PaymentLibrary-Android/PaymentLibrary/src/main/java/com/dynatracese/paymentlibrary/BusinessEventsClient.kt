@@ -301,6 +301,7 @@ object BusinessEventsClient {
         val now = Date()
         val data = mutableMapOf<String, JsonElement>()
         data["action.id"] = JsonPrimitive(UUID.randomUUID().toString())
+        data["action.starttime"] = JsonPrimitive(now.time)
         parentActionId?.let { data["action.parentId"] = JsonPrimitive(it.toString()) }
         sessionId?.let { data["session.id"] = JsonPrimitive(it) }
         error?.let { data["action.error"] = JsonPrimitive(it) }
