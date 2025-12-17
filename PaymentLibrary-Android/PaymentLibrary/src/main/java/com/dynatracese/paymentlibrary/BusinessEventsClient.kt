@@ -24,6 +24,11 @@ import com.dynatracese.paymentlibrary.Secrets
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.coroutineContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -45,6 +50,12 @@ import kotlin.coroutines.cancellation.CancellationException
 
 // MARK: - Public API
 
+// Coroutine context key for tracking current action ID
+private data class CurrentActionKey(val actionId: UUID) : CoroutineContext.Element {
+    companion object Key : CoroutineContext.Key<CurrentActionKey>
+    override val key: CoroutineContext.Key<*> get() = Key
+}
+
 object BusinessEventsClient {
 
     sealed class Auth {
@@ -65,7 +76,8 @@ object BusinessEventsClient {
         val appVersion: String? = null,         // optional meta
         val deviceInfo: String? = null,         // optional meta
         val deviceMetadata: DeviceMetadataCollector.DeviceMetadata? = null, // comprehensive device metadata
-        val maxRetryAttempts: Int = 3           // configurable retry count
+        val maxRetryAttempts: Int = 3,          // configurable retry count
+        val actionTimeoutSeconds: Long = 7      // timeout in seconds before auto-finishing actions
     )
 
     data class BeginOptions(
@@ -174,9 +186,31 @@ object BusinessEventsClient {
             startedAt = now,
             attributes = opts.attributes.toJsonElementMap(),
             parentActionId = effectiveParentId,
-            eventType = "custom.rum.sdk.action" // Always use fixed event type
+            eventType = "custom.rum.sdk.action", // Always use fixed event type
+            timeoutJob = null
         )
+        
+        // Schedule timeout job
+        val timeoutJob = GlobalScope.launch {
+            delay(cfg.actionTimeoutSeconds * 1000)
+            try {
+                endAction(
+                    ctx.id,
+                    status = "TIMEOUT",
+                    error = "Action exceeded timeout of ${cfg.actionTimeoutSeconds}s"
+                )
+                Log.i("BusinessEventsClient", "Action '${ctx.name}' auto-finished with TIMEOUT status")
+            } catch (e: ClientError.UnknownAction) {
+                // Action was already finished by user code - this is expected and not an error
+                Log.d("BusinessEventsClient", "Action '${ctx.name}' was already finished when timeout fired")
+            } catch (e: Exception) {
+                Log.e("BusinessEventsClient", "Failed to auto-finish timed out action '${ctx.name}': ${e.message}")
+            }
+        }
+        ctx.timeoutJob = timeoutJob
+        
         store.insert(ctx)
+        Log.d("BusinessEventsClient", "Action '${ctx.name}' started, timeout: ${cfg.actionTimeoutSeconds}s")
         return ctx.id
     }
 
@@ -189,6 +223,10 @@ object BusinessEventsClient {
     ) {
         val cfg = config ?: throw ClientError.NotConfigured
         val ctx = store.remove(actionId) ?: throw ClientError.UnknownAction
+        
+        // Cancel timeout job since action is ending normally
+        ctx.timeoutJob?.cancel()
+        ctx.timeoutJob = null
 
         val finishedAt = Date()
         val durationMs = (finishedAt.time - ctx.startedAt.time)
@@ -252,28 +290,44 @@ object BusinessEventsClient {
         Log.d("BusinessEventsClient", "Executo end action")
     }
 
-    // Convenience wrapper that auto-finalizes
+    // Convenience wrapper that auto-finalizes with automatic parent-child relationship tracking
     suspend fun <T> withAction(
         name: String,
         attributes: Map<String, Any> = emptyMap(),
         parentActionId: UUID? = null,
         body: suspend () -> T
     ): T {
-        val id = beginAction(BeginOptions(name, attributes, parentActionId))
-        try {
-            val result = body()
-            endAction(id, status = "SUCCESS")
-            Log.d("BusinessEventsClient", "Action name: $name")
-            return result
-        } catch (e: Exception) {
-            // Avoid re-throwing cancellation exceptions, let them propagate
-            if (e is CancellationException) throw e
+        // Automatically use current action as parent if no explicit parent provided
+        val currentActionId = coroutineContext[CurrentActionKey]?.actionId
+        val effectiveParentId = parentActionId ?: currentActionId
+        
+        val id = beginAction(BeginOptions(name, attributes, effectiveParentId))
+        
+        // Set this action as current in coroutine context for nested actions
+        return withContext(CurrentActionKey(id)) {
             try {
-                endAction(id, status = "FAILURE", error = e.message ?: e.toString())
-            } catch (endActionError: Exception) {
-                Log.e("BusinessEventsClient", "Failed to send error event: $endActionError")
+                val result = body()
+                try {
+                    endAction(id, status = "SUCCESS")
+                    Log.d("BusinessEventsClient", "Action name: $name")
+                } catch (e: ClientError.UnknownAction) {
+                    // Action was already finished by timeout - this is expected
+                    Log.d("BusinessEventsClient", "Action '$name' was already finished (likely by timeout)")
+                }
+                result
+            } catch (e: Exception) {
+                // Avoid re-throwing cancellation exceptions, let them propagate
+                if (e is CancellationException) throw e
+                try {
+                    endAction(id, status = "FAILURE", error = e.message ?: e.toString())
+                } catch (endActionError: ClientError.UnknownAction) {
+                    // Action was already finished by timeout - this is expected
+                    Log.d("BusinessEventsClient", "Action '$name' was already finished when trying to record failure (likely by timeout)")
+                } catch (endActionError: Exception) {
+                    Log.e("BusinessEventsClient", "Failed to send error event: $endActionError")
+                }
+                throw e
             }
-            throw e
         }
     }
 
@@ -301,6 +355,7 @@ object BusinessEventsClient {
         val now = Date()
         val data = mutableMapOf<String, JsonElement>()
         data["action.id"] = JsonPrimitive(UUID.randomUUID().toString())
+        data["action.starttime"] = JsonPrimitive(now.time)
         parentActionId?.let { data["action.parentId"] = JsonPrimitive(it.toString()) }
         sessionId?.let { data["session.id"] = JsonPrimitive(it) }
         error?.let { data["action.error"] = JsonPrimitive(it) }
@@ -345,7 +400,8 @@ object BusinessEventsClient {
         val startedAt: Date,
         val attributes: Map<String, JsonElement>,
         val parentActionId: UUID?,
-        val eventType: String
+        val eventType: String,
+        var timeoutJob: kotlinx.coroutines.Job? = null
     )
 
     sealed class ClientError : Exception() {
@@ -426,7 +482,11 @@ private class InMemoryStore {
     private val dict = ConcurrentHashMap<UUID, BusinessEventsClient.ActionContext>()
     fun insert(ctx: BusinessEventsClient.ActionContext) { dict[ctx.id] = ctx }
     fun lookup(id: UUID): BusinessEventsClient.ActionContext? = dict[id]
-    fun remove(id: UUID): BusinessEventsClient.ActionContext? = dict.remove(id)
+    fun remove(id: UUID): BusinessEventsClient.ActionContext? {
+        val ctx = dict.remove(id)
+        ctx?.timeoutJob?.cancel()
+        return ctx
+    }
     fun getLastActionContext(): BusinessEventsClient.ActionContext? = dict.values.lastOrNull()
 }
 
