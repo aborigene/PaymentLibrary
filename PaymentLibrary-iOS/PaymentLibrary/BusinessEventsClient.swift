@@ -56,6 +56,7 @@ public final class BusinessEventsClient {
         public var appVersion: String?            // optional meta
         public var deviceInfo: String?            // optional meta
         public var deviceMetadata: DeviceMetadataCollector.DeviceMetadata? // comprehensive device metadata
+        public var actionTimeoutSeconds: TimeInterval // timeout in seconds before auto-finishing actions
         
         public init(endpoint: URL,
                     auth: Auth,
@@ -63,7 +64,8 @@ public final class BusinessEventsClient {
                     defaultEventType: String,
                     appVersion: String? = nil,
                     deviceInfo: String? = nil,
-                    deviceMetadata: DeviceMetadataCollector.DeviceMetadata? = nil) {
+                    deviceMetadata: DeviceMetadataCollector.DeviceMetadata? = nil,
+                    actionTimeoutSeconds: TimeInterval = 7.0) {
             self.endpoint = endpoint
             self.auth = auth
             self.eventProvider = eventProvider
@@ -71,6 +73,7 @@ public final class BusinessEventsClient {
             self.appVersion = appVersion
             self.deviceInfo = deviceInfo
             self.deviceMetadata = deviceMetadata
+            self.actionTimeoutSeconds = actionTimeoutSeconds
         }
     }
 
@@ -202,17 +205,36 @@ public final class BusinessEventsClient {
         // Special case: don't use session action as parent for session_started event itself
         let effectiveParentId = opts.parentActionId ?? Self.currentActionId ?? (opts.name == "session_started" ? nil : sessionActionId)
         
-        let ctx = ActionContext(
+        var ctx = ActionContext(
             id: UUID(),
             name: opts.name,
             startedAt: now,
             attributes: enhancedAttributes, // Use enhanced attributes with fresh metadata
             parentActionId: effectiveParentId, // Use the resolved effective parent ID
-            eventType: cfg.defaultEventType
+            eventType: cfg.defaultEventType,
+            timeoutTimer: nil
         )
+        
+        // Schedule timeout timer
+        let timer = Timer.scheduledTimer(withTimeInterval: cfg.actionTimeoutSeconds, repeats: false) { [weak self] _ in
+            guard let self = self else { return }
+            Task {
+                do {
+                    try await self.endAction(ctx.id, status: "TIMEOUT", error: "Action exceeded timeout of \(cfg.actionTimeoutSeconds)s")
+                    os_log("Action '%@' auto-finished with TIMEOUT status", log: OSLog.default, type: .info, ctx.name)
+                } catch ClientError.unknownAction {
+                    // Action was already finished by user code - this is expected and not an error
+                    os_log("Action '%@' was already finished when timeout fired", log: OSLog.default, type: .debug, ctx.name)
+                } catch {
+                    os_log("Failed to auto-finish timed out action '%@': %@", log: OSLog.default, type: .error, ctx.name, error.localizedDescription)
+                }
+            }
+        }
+        ctx.timeoutTimer = timer
+        
         store.insert(ctx)
         
-        os_log("Action '%@' started with fresh device metadata (%d attributes)", log: OSLog.default, type: .debug, ctx.name, enhancedAttributes.count)
+        os_log("Action '%@' started with fresh device metadata (%d attributes), timeout: %.1fs", log: OSLog.default, type: .debug, ctx.name, enhancedAttributes.count, cfg.actionTimeoutSeconds)
         return ctx.id
     }
 
@@ -222,7 +244,11 @@ public final class BusinessEventsClient {
                           error: String? = nil,
                           extraAttributes: [String: AnyEncodable] = [:]) async throws {
         guard let cfg = config else { throw ClientError.notConfigured }
-        guard let ctx = store.remove(id: actionId) else { throw ClientError.unknownAction }
+        guard var ctx = store.remove(id: actionId) else { throw ClientError.unknownAction }
+        
+        // Cancel timeout timer since action is ending normally
+        ctx.timeoutTimer?.invalidate()
+        ctx.timeoutTimer = nil
 
         let finishedAt = Date()
         let durationMs = Int((finishedAt.timeIntervalSince(ctx.startedAt))*1000)
@@ -311,11 +337,24 @@ public final class BusinessEventsClient {
         return try await Self.$currentActionId.withValue(id) {
             do {
                 let result = try await body()
-                try await endAction(id, status: "SUCCESS")
-                os_log("Action name: \(name)")
+                do {
+                    try await endAction(id, status: "SUCCESS")
+                    os_log("Action name: %@", log: OSLog.default, type: .debug, name)
+                } catch ClientError.unknownAction {
+                    // Action was already finished by timeout - this is expected
+                    os_log("Action '%@' was already finished (likely by timeout)", log: OSLog.default, type: .debug, name)
+                }
                 return result
             } catch {
-                try? await endAction(id, status: "FAILURE", error: String(describing: error))
+                do {
+                    try await endAction(id, status: "FAILURE", error: String(describing: error))
+                } catch ClientError.unknownAction {
+                    // Action was already finished by timeout - this is expected
+                    os_log("Action '%@' was already finished when trying to record failure (likely by timeout)", log: OSLog.default, type: .debug, name)
+                } catch {
+                    // Log other endAction errors but don't fail
+                    os_log("Failed to send error event: %@", log: OSLog.default, type: .error, error.localizedDescription)
+                }
                 throw error
             }
         }
@@ -501,6 +540,7 @@ public final class BusinessEventsClient {
         public let attributes: [String: AnyEncodable]
         public let parentActionId: UUID?
         public let eventType: String
+        var timeoutTimer: Timer?
     }
 
     private var config: Config?
@@ -691,7 +731,14 @@ private final class InMemoryStore {
     private let q = DispatchQueue(label: "biz.store")
     public func insert(_ ctx: BusinessEventsClient.ActionContext) { q.sync { dict[ctx.id] = ctx } }
     public func lookup(id: UUID) -> BusinessEventsClient.ActionContext? { q.sync { dict[id] } }
-    public func remove(id: UUID) -> BusinessEventsClient.ActionContext? { q.sync { dict.removeValue(forKey: id) } }
+    public func remove(id: UUID) -> BusinessEventsClient.ActionContext? { 
+        q.sync { 
+            guard var ctx = dict.removeValue(forKey: id) else { return nil }
+            ctx.timeoutTimer?.invalidate()
+            ctx.timeoutTimer = nil
+            return ctx
+        } 
+    }
     public func getLastActionContext() -> BusinessEventsClient.ActionContext? {
         q.sync { dict.values.sorted { $0.startedAt > $1.startedAt }.first }
     }
