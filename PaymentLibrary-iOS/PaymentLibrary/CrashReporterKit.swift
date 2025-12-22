@@ -50,15 +50,11 @@ final class CrashReporterKit {
         }
         Self.crashReported = true
         
-        // Log IMMEDIATELY to confirm handler is called
-        os_log("🔴 CRASH HANDLER CALLED - Exception: %@", log: OSLog.default, type: .fault, exception.name.rawValue)
+        // Log crash occurrence
         print("🔴 CRASH HANDLER CALLED - Exception: \(exception.name.rawValue)")
         
         let stackTrace = exception.callStackSymbols.joined(separator: "\n")
         let errorMessage = exception.reason ?? "unknown"
-        
-        os_log("🔴 CRASH HANDLER CALLED - StackTrace: %@", log: OSLog.default, type: .fault, stackTrace)
-        print("🔴 CRASH HANDLER CALLED - StackTrace: \(stackTrace)")
 
         let extraAttributes: [String: AnyEncodable] = [
             "crash.class": AnyEncodable(exception.name.rawValue),
@@ -73,13 +69,11 @@ final class CrashReporterKit {
         // If there's an open action, finish it with CRASH status first
         if let currentAction = actionContext {
             do {
-                print("🔴 Finishing open action '\(currentAction.name)' with CRASH status...")
                 try BusinessEventsClient.shared.endActionSync(
                     currentAction.id,
                     status: "CRASH",
                     error: errorMessage
                 )
-                print("✅ Open action finished with CRASH status")
             } catch {
                 print("❌ Failed to finish open action: \(error)")
             }
@@ -102,29 +96,20 @@ final class CrashReporterKit {
         // Send crash report synchronously - blocks until complete or times out
         var crashSentSuccessfully = false
         do {
-            os_log("🔴 Starting to send crash report synchronously...", log: OSLog.default, type: .fault)
-            print("🔴 Sending crash report for session: \(sessionId ?? "none")")
-            
             try BusinessEventsClient.shared.sendCrashReportSync(
                 parentActionId: parentActionId,
                 sessionId: sessionId,
                 error: errorMessage,
                 extraAttributes: extraAttributes
             )
-            os_log("✅ Crash report sent successfully", log: OSLog.default, type: .info)
-            print("✅ Crash report sent successfully")
             crashSentSuccessfully = true
         } catch {
-            os_log("❌ Failed to send crash report: %@", log: OSLog.default, type: .error, error.localizedDescription)
             print("❌ Failed to send crash report: \(error)")
         }
         
         // Delete saved report only if we successfully sent it
         if crashSentSuccessfully {
             deleteSavedReport()
-            print("✅ Saved crash report deleted after successful send")
-        } else {
-            print("⚠️ Crash report saved to disk for next reboot")
         }
     }
 
@@ -162,13 +147,11 @@ final class CrashReporterKit {
             // If there's an open action, finish it with CRASH status first
             if let currentAction = actionContext {
                 do {
-                    print("🔴 Finishing open action '\(currentAction.name)' with CRASH status...")
                     try BusinessEventsClient.shared.endActionSync(
                         currentAction.id,
                         status: "CRASH",
                         error: errorMessage
                     )
-                    print("✅ Open action finished with CRASH status")
                 } catch {
                     print("❌ Failed to finish open action: \(error)")
                 }
@@ -198,18 +181,14 @@ final class CrashReporterKit {
                     error: errorMessage,
                     extraAttributes: extraAttributes
                 )
-                os_log("Signal crash report sent successfully", log: OSLog.default, type: .info)
                 crashSentSuccessfully = true
             } catch {
-                os_log("Failed to send signal crash report: %@", log: OSLog.default, type: .error, error.localizedDescription)
+                print("❌ Failed to send signal crash report: \(error)")
             }
             
             // Delete saved report only if we successfully sent it
             if crashSentSuccessfully {
                 CrashReporterKit.shared.deleteSavedReport()
-                print("✅ Saved crash report deleted after successful send")
-            } else {
-                print("⚠️ Crash report saved to disk for next reboot")
             }
             
             exit(signal)
@@ -242,13 +221,11 @@ final class CrashReporterKit {
         // If there's an open action, finish it with CRASH status first
         if let currentAction = actionContext {
             do {
-                print("🔴 Finishing open action '\(currentAction.name)' with CRASH status...")
                 try BusinessEventsClient.shared.endActionSync(
                     currentAction.id,
                     status: "CRASH",
                     error: errorMessage
                 )
-                print("✅ Open action finished with CRASH status")
             } catch {
                 print("❌ Failed to finish open action: \(error)")
             }
@@ -265,9 +242,8 @@ final class CrashReporterKit {
                 error: errorMessage,
                 extraAttributes: extraAttributes
             )
-            os_log("Manual crash report sent successfully", log: OSLog.default, type: .info)
         } catch {
-            os_log("Failed to send manual crash report: %@", log: OSLog.default, type: .error, error.localizedDescription)
+            print("❌ Failed to send manual crash report: \(error)")
         }
     }
 
@@ -277,7 +253,6 @@ final class CrashReporterKit {
         let url = crashLogURL()
         if let jsonData = try? JSONSerialization.data(withJSONObject: crashData, options: .prettyPrinted) {
             try? jsonData.write(to: url, options: .atomic)
-            print("💾 Crash data saved to disk")
         }
     }
     
@@ -298,11 +273,8 @@ final class CrashReporterKit {
         guard FileManager.default.fileExists(atPath: url.path) else { return }
         guard let jsonData = try? Data(contentsOf: url),
               let crashData = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any] else {
-            print("⚠️ Failed to parse saved crash report")
             return
         }
-
-        print("📤 Sending saved crash report from previous session...")
         
         Task {
             do {

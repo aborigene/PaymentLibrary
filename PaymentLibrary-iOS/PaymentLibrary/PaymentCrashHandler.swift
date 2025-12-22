@@ -49,13 +49,32 @@ class PaymentCrashHandler {
 
         os_log("uncaughtException: This is a log from the PaymentCrashHandler....", type: .info)
         
-        // Report the crash using the OpenKit SDK.
+        // Report the crash using BusinessEventsClient with mapping file identifiers
+        let extraAttributes: [String: AnyEncodable] = [
+            "crash.class": AnyEncodable(exception.name.rawValue),
+            "crash.stackTrace": AnyEncodable(stackTrace)
+        ]
+        
+        do {
+            try BusinessEventsClient.shared.sendCrashReportSync(
+                parentActionId: BusinessEventsClient.currentActionId,
+                sessionId: BusinessEventsClient.shared.sessionId,
+                error: description,
+                extraAttributes: extraAttributes
+            )
+            os_log("Crash report sent via BusinessEventsClient with mapping identifiers.", type: .info)
+        } catch {
+            os_log("Failed to send crash report: %@", type: .error, error.localizedDescription)
+        }
+        
+        // Also report to OpenKit if session is available for backward compatibility
         if let session = PaymentCrashHandler.crashSession {
             OPReportCrash(session, exception.name.rawValue, description, stackTrace)
-            // Wait for a short duration to ensure the crash report is sent.
-            Thread.sleep(forTimeInterval: 2.0)
-            os_log("Crash report sent via OpenKit.", type: .info)
+            os_log("Crash also reported to OpenKit.", type: .info)
         }
+        
+        // Wait for a short duration to ensure the crash report is sent
+        Thread.sleep(forTimeInterval: 2.0)
 
         // Pass the exception to the original handler if one exists.
         // This ensures other crash reporting tools (like Firebase Crashlytics) still work.

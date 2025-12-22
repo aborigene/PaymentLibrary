@@ -7,6 +7,19 @@ AAR_DESTINATION="${AAR_DESTINATION:-$DEFAULT_DESTINATION}"
 echo "🔨 Building obfuscated PaymentLibrary for Android..."
 echo ""
 
+# Run critical field validation tests to ensure crashes include all required fields
+echo "🧪 Running critical field validation tests..."
+./gradlew :PaymentLibrary:testReleaseUnitTest --tests "CrashEventFieldsTest"
+
+if [ $? -ne 0 ]; then
+    echo ""
+    echo "❌ Critical field validation tests failed! Build aborted."
+    exit 1
+fi
+
+echo "✅ Critical tests passed!"
+echo ""
+
 # Clean previous builds
 ./gradlew clean
 

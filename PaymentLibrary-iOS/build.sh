@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Clean previous build artifacts to avoid nested dSYM issues
+echo "🧹 Cleaning previous build artifacts..."
+rm -rf output/
+
 xcodebuild archive \
   -scheme PaymentLibrary -configuration Release \
   -destination "generic/platform=iOS" \
@@ -34,18 +38,32 @@ xcodebuild -create-xcframework \
 echo "📦 Extracting dSYM files for Dynatrace upload..."
 mkdir -p output/dSYMs
 
-# Copy dSYM from iOS archive
+# Copy dSYM from iOS (device) archive
 if [ -d "output/PaymentLibrary-iOS.xcarchive/dSYMs/PaymentLibrary.framework.dSYM" ]; then
-  cp -R output/PaymentLibrary-iOS.xcarchive/dSYMs/PaymentLibrary.framework.dSYM output/dSYMs/
-  echo "✅ iOS dSYM extracted to: output/dSYMs/PaymentLibrary.framework.dSYM"
+  cp -R output/PaymentLibrary-iOS.xcarchive/dSYMs/PaymentLibrary.framework.dSYM output/dSYMs/PaymentLibrary-device.framework.dSYM
+  echo "✅ iOS device dSYM extracted to: output/dSYMs/PaymentLibrary-device.framework.dSYM"
   
-  # Create a zip for easy Dynatrace upload
+  # Create a zip for device dSYM
   cd output/dSYMs
-  zip -r PaymentLibrary-dSYM.zip PaymentLibrary.framework.dSYM
+  zip -r PaymentLibrary-device-dSYM.zip PaymentLibrary-device.framework.dSYM
   cd ../..
-  echo "✅ dSYM zip created: output/dSYMs/PaymentLibrary-dSYM.zip"
+  echo "✅ Device dSYM zip created: output/dSYMs/PaymentLibrary-device-dSYM.zip"
 else
-  echo "⚠️  Warning: dSYM file not found in archive"
+  echo "⚠️  Warning: iOS device dSYM file not found in archive"
+fi
+
+# Copy dSYM from iOS Simulator archive
+if [ -d "output/PaymentLibrary-iOSSim.xcarchive/dSYMs/PaymentLibrary.framework.dSYM" ]; then
+  cp -R output/PaymentLibrary-iOSSim.xcarchive/dSYMs/PaymentLibrary.framework.dSYM output/dSYMs/PaymentLibrary-simulator.framework.dSYM
+  echo "✅ iOS simulator dSYM extracted to: output/dSYMs/PaymentLibrary-simulator.framework.dSYM"
+  
+  # Create a zip for simulator dSYM
+  cd output/dSYMs
+  zip -r PaymentLibrary-simulator-dSYM.zip PaymentLibrary-simulator.framework.dSYM
+  cd ../..
+  echo "✅ Simulator dSYM zip created: output/dSYMs/PaymentLibrary-simulator-dSYM.zip"
+else
+  echo "⚠️  Warning: iOS simulator dSYM file not found in archive"
 fi
 
 echo ""
@@ -54,4 +72,5 @@ echo "📱 Framework: output/PaymentLibrary.xcframework"
 echo "🔍 dSYM files: output/dSYMs/"
 echo ""
 echo "To upload to Dynatrace:"
-echo "  Use file: output/dSYMs/PaymentLibrary-dSYM.zip"
+echo "  Device dSYM:    output/dSYMs/PaymentLibrary-device-dSYM.zip"
+echo "  Simulator dSYM: output/dSYMs/PaymentLibrary-simulator-dSYM.zip"

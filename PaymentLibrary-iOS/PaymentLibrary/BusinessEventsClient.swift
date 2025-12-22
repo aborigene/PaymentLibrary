@@ -33,7 +33,7 @@ public final class BusinessEventsClient {
     
     // Default configuration values
     public static let defaultEventType = "custom.rum.sdk.action"
-    public static let defaultEventProvider = "Custom RUM Application"
+    public static let defaultEventProvider = "CustomRumSDK"
     
     // Session management
     private var hasSessionStarted = false
@@ -42,6 +42,22 @@ public final class BusinessEventsClient {
     
     // Task-local storage for thread-safe action tracking
     @TaskLocal static var currentActionId: UUID?
+
+    public enum LogLevel: Int, Comparable {
+        case verbose = 0
+        case debug = 1
+        case info = 2
+        case warn = 3
+        case error = 4
+        case none = 5
+        
+        public static func < (lhs: LogLevel, rhs: LogLevel) -> Bool {
+            return lhs.rawValue < rhs.rawValue
+        }
+    }
+    
+    // Log level configuration - defaults to DEBUG
+    private var logLevel: LogLevel = .debug
 
     public enum Auth {
         case apiToken(String)      // "Authorization: Api-Token <token>"
@@ -57,6 +73,7 @@ public final class BusinessEventsClient {
         public var deviceInfo: String?            // optional meta
         public var deviceMetadata: DeviceMetadataCollector.DeviceMetadata? // comprehensive device metadata
         public var actionTimeoutSeconds: TimeInterval // timeout in seconds before auto-finishing actions
+        public var logLevel: LogLevel              // default log level (default: .info)
         
         public init(endpoint: URL,
                     auth: Auth,
@@ -65,7 +82,8 @@ public final class BusinessEventsClient {
                     appVersion: String? = nil,
                     deviceInfo: String? = nil,
                     deviceMetadata: DeviceMetadataCollector.DeviceMetadata? = nil,
-                    actionTimeoutSeconds: TimeInterval = 7.0) {
+                    actionTimeoutSeconds: TimeInterval = 7.0,
+                    logLevel: LogLevel = .debug) {
             self.endpoint = endpoint
             self.auth = auth
             self.eventProvider = eventProvider
@@ -74,6 +92,7 @@ public final class BusinessEventsClient {
             self.deviceInfo = deviceInfo
             self.deviceMetadata = deviceMetadata
             self.actionTimeoutSeconds = actionTimeoutSeconds
+            self.logLevel = logLevel
         }
     }
 
@@ -90,15 +109,42 @@ public final class BusinessEventsClient {
         }
     }
 
+    // Helper methods for logging with level check
+    private func logV(_ message: String, _ args: CVarArg...) {
+        guard logLevel <= .verbose else { return }
+        os_log("%@", log: .default, type: .debug, String(format: message, arguments: args))
+    }
+    
+    private func logD(_ message: String, _ args: CVarArg...) {
+        guard logLevel <= .debug else { return }
+        os_log("%@", log: .default, type: .debug, String(format: message, arguments: args))
+    }
+    
+    private func logI(_ message: String, _ args: CVarArg...) {
+        guard logLevel <= .info else { return }
+        os_log("%@", log: .default, type: .info, String(format: message, arguments: args))
+    }
+    
+    private func logW(_ message: String, _ args: CVarArg...) {
+        guard logLevel <= .warn else { return }
+        os_log("%@", log: .default, type: .default, String(format: message, arguments: args))
+    }
+    
+    private func logE(_ message: String, _ args: CVarArg...) {
+        guard logLevel <= .error else { return }
+        os_log("%@", log: .default, type: .error, String(format: message, arguments: args))
+    }
+
     // Configure before use
     public func configure(_ config: Config) {
         self.config = config
+        self.logLevel = config.logLevel
         
         // Log device metadata for debugging
         if let metadata = config.deviceMetadata {
-            os_log("Device Metadata Collected:", log: OSLog.default, type: .debug)
-            os_log("OS: %@ - Device: %@", log: OSLog.default, type: .debug, metadata.osVersion, metadata.deviceModel)
-            os_log("Network: %@ - Carrier: %@", log: OSLog.default, type: .debug, metadata.networkType, metadata.carrierName ?? "unknown")
+            logD("Device Metadata Collected:")
+            logD("OS: %@ - Device: %@", metadata.osVersion, metadata.deviceModel)
+            logD("Network: %@ - Carrier: %@", metadata.networkType, metadata.carrierName ?? "unknown")
         }
         
         // Automatically create session_started event on first configuration
@@ -111,7 +157,7 @@ public final class BusinessEventsClient {
     /// - Parameters:
     ///   - endpoint: Dynatrace bizevents ingest endpoint
     ///   - auth: Authentication method (API token or Bearer token)
-    ///   - eventProvider: Event provider identifier (optional, defaults to "Custom RUM Application")
+    ///   - eventProvider: Event provider identifier (optional, defaults to "CustomRumSDK")
     ///   - appVersion: Application version (optional)
     ///   - deviceInfo: Device information string (optional)
     public func configure(
@@ -137,7 +183,7 @@ public final class BusinessEventsClient {
     /// - Parameters:
     ///   - endpoint: Dynatrace bizevents ingest endpoint
     ///   - auth: Authentication method (API token or Bearer token)
-    ///   - eventProvider: Event provider identifier (optional, defaults to "Custom RUM Application")
+    ///   - eventProvider: Event provider identifier (optional, defaults to "CustomRumSDK")
     ///   - appVersion: Application version (optional)
     public func configureWithDeviceMetadata(
         endpoint: URL,
@@ -221,12 +267,12 @@ public final class BusinessEventsClient {
             Task {
                 do {
                     try await self.endAction(ctx.id, status: "TIMEOUT", error: "Action exceeded timeout of \(cfg.actionTimeoutSeconds)s")
-                    os_log("Action '%@' auto-finished with TIMEOUT status", log: OSLog.default, type: .info, ctx.name)
+                    self.logI("Action '%@' auto-finished with TIMEOUT status", ctx.name)
                 } catch ClientError.unknownAction {
                     // Action was already finished by user code - this is expected and not an error
-                    os_log("Action '%@' was already finished when timeout fired", log: OSLog.default, type: .debug, ctx.name)
+                    self.logD("Action '%@' was already finished when timeout fired", ctx.name)
                 } catch {
-                    os_log("Failed to auto-finish timed out action '%@': %@", log: OSLog.default, type: .error, ctx.name, error.localizedDescription)
+                    self.logE("Failed to auto-finish timed out action '%@': %@", ctx.name, error.localizedDescription)
                 }
             }
         }
@@ -234,7 +280,7 @@ public final class BusinessEventsClient {
         
         store.insert(ctx)
         
-        os_log("Action '%@' started with fresh device metadata (%d attributes), timeout: %.1fs", log: OSLog.default, type: .debug, ctx.name, enhancedAttributes.count, cfg.actionTimeoutSeconds)
+        logD("Action '%@' started with fresh device metadata (%d attributes), timeout: %.1fs", ctx.name, enhancedAttributes.count, cfg.actionTimeoutSeconds)
         return ctx.id
     }
 
@@ -279,7 +325,7 @@ public final class BusinessEventsClient {
         )
 
         try await send(event: event, config: cfg)
-        os_log("Executo end action")
+        logD("Executo end action")
     }
     
     // Synchronous version of endAction for crash scenarios where async context is unreliable
@@ -339,10 +385,10 @@ public final class BusinessEventsClient {
                 let result = try await body()
                 do {
                     try await endAction(id, status: "SUCCESS")
-                    os_log("Action name: %@", log: OSLog.default, type: .debug, name)
+                    logD("Action name: %@", name)
                 } catch ClientError.unknownAction {
                     // Action was already finished by timeout - this is expected
-                    os_log("Action '%@' was already finished (likely by timeout)", log: OSLog.default, type: .debug, name)
+                    logD("Action '%@' was already finished (likely by timeout)", name)
                 }
                 return result
             } catch {
@@ -350,10 +396,10 @@ public final class BusinessEventsClient {
                     try await endAction(id, status: "FAILURE", error: String(describing: error))
                 } catch ClientError.unknownAction {
                     // Action was already finished by timeout - this is expected
-                    os_log("Action '%@' was already finished when trying to record failure (likely by timeout)", log: OSLog.default, type: .debug, name)
+                    logD("Action '%@' was already finished when trying to record failure (likely by timeout)", name)
                 } catch {
                     // Log other endAction errors but don't fail
-                    os_log("Failed to send error event: %@", log: OSLog.default, type: .error, error.localizedDescription)
+                    logE("Failed to send error event: %@", error.localizedDescription)
                 }
                 throw error
             }
@@ -385,6 +431,8 @@ public final class BusinessEventsClient {
         var data: [String: AnyEncodable] = [:]
         
         data["action.id"] = AnyEncodable(UUID().uuidString)
+        data["action.name"] = AnyEncodable("crash")
+        data["action.status"] = AnyEncodable("CRASH")
         data["action.starttime"] = AnyEncodable(now.timeIntervalSince1970*1000)
         if let parentId = parentActionId {
             data["action.parentId"] = AnyEncodable(parentId.uuidString)
@@ -395,6 +443,68 @@ public final class BusinessEventsClient {
         if let errorMsg = error {
             data["action.error"] = AnyEncodable(errorMsg)
         }
+        
+        // Add mapping file identifiers for deobfuscation
+        let frameworkBundle = Bundle(for: BusinessEventsClient.self)
+        if let bundleId = frameworkBundle.bundleIdentifier {
+            data["crash.bundleId"] = AnyEncodable(bundleId)
+            os_log("✅ crash.bundleId = %@", log: .default, type: .info, bundleId)
+        } else {
+            os_log("⚠️ crash.bundleId is nil", log: .default, type: .default)
+        }
+        if let version = frameworkBundle.infoDictionary?["CFBundleShortVersionString"] as? String {
+            data["crash.version"] = AnyEncodable(version)
+            os_log("✅ crash.version = %@", log: .default, type: .info, version)
+        } else {
+            os_log("⚠️ crash.version is nil", log: .default, type: .default)
+        }
+        if let build = frameworkBundle.infoDictionary?["CFBundleVersion"] as? String {
+            data["crash.build"] = AnyEncodable(build)
+            os_log("✅ crash.build = %@", log: .default, type: .info, build)
+        } else {
+            os_log("⚠️ [Sync] crash.build not found in bundle info", log: .default, type: .default)
+        }
+        if let uuid = getBinaryUUID() {
+            data["crash.uuid"] = AnyEncodable(uuid)
+            os_log("✅ crash.uuid = %@", log: .default, type: .info, uuid)
+        } else {
+            os_log("❌ crash.uuid is nil - getBinaryUUID() returned nil", log: .default, type: .error)
+        }
+        
+        // Collect loaded images and filter by stack trace
+        let allLoadedImages = getLoadedImages()
+        logD("getLoadedImages() returned %d total images", allLoadedImages.count)
+        
+        // Filter images to only those referenced in the stack trace
+        // Extract stack trace string from AnyEncodable by encoding/decoding
+        var stackTrace = ""
+        if let stackTraceEncodable = extraAttributes["crash.stackTrace"] {
+            // Try to encode and decode to extract the underlying String
+            if let jsonData = try? JSONEncoder().encode(stackTraceEncodable),
+               let decodedString = try? JSONDecoder().decode(String.self, from: jsonData) {
+                stackTrace = decodedString
+                logD("✅ Successfully extracted stack trace from AnyEncodable (%d chars)", decodedString.count)
+            } else {
+                logW("⚠️ Failed to extract stack trace from AnyEncodable")
+            }
+        } else {
+            logW("⚠️ No crash.stackTrace found in extraAttributes")
+        }
+        
+        let filteredImages = filterImagesByStackTrace(allImages: allLoadedImages, stackTrace: stackTrace)
+        
+        if !filteredImages.isEmpty {
+            data["crash.loaded_images"] = AnyEncodable(filteredImages)
+            logI("✅ Added crash.loaded_images with %d entries (filtered from %d)", filteredImages.count, allLoadedImages.count)
+            // Log all filtered images
+            for (index, image) in filteredImages.enumerated() {
+                logD("  Image[%d]: %@ at %@", index, image["name"] ?? "unknown", image["base_address"] ?? "unknown")
+            }
+        } else {
+            logW("⚠️ No images matched stack trace (total: %d)!", allLoadedImages.count)
+        }
+        
+        data["crash.platform"] = AnyEncodable("iOS")
         
         // Merge extra attributes
         data.merge(extraAttributes) { _, new in new }
@@ -462,7 +572,7 @@ public final class BusinessEventsClient {
         
         data["action.id"] = AnyEncodable(UUID().uuidString)
         data["action.name"] = AnyEncodable("crash")
-        data["action.status"] = AnyEncodable("FAILURE")
+        data["action.status"] = AnyEncodable("CRASH")
         data["action.starttime"] = AnyEncodable(now.timeIntervalSince1970*1000)
         
         if let parentId = parentActionId {
@@ -474,6 +584,48 @@ public final class BusinessEventsClient {
         if let errorMsg = error {
             data["action.error"] = AnyEncodable(errorMsg)
         }
+        
+        // Add mapping file identifiers for deobfuscation
+        let frameworkBundle = Bundle(for: BusinessEventsClient.self)
+        if let bundleId = frameworkBundle.bundleIdentifier {
+            data["crash.bundleId"] = AnyEncodable(bundleId)
+        }
+        if let version = frameworkBundle.infoDictionary?["CFBundleShortVersionString"] as? String {
+            data["crash.version"] = AnyEncodable(version)
+        }
+        if let build = frameworkBundle.infoDictionary?["CFBundleVersion"] as? String {
+            data["crash.build"] = AnyEncodable(build)
+        }
+        if let uuid = getBinaryUUID() {
+            data["crash.uuid"] = AnyEncodable(uuid)
+        } else {
+            print("❌ crash.uuid is nil - unable to extract framework UUID")
+        }
+        
+        // Collect loaded images and filter by stack trace
+        let allLoadedImages = getLoadedImages()
+        
+        // Filter images to only those referenced in the stack trace
+        // Extract stack trace string from AnyEncodable by encoding/decoding
+        var stackTrace = ""
+        if let stackTraceEncodable = extraAttributes["crash.stackTrace"] {
+            // Try to encode and decode to extract the underlying String
+            if let jsonData = try? JSONEncoder().encode(stackTraceEncodable),
+               let decodedString = try? JSONDecoder().decode(String.self, from: jsonData) {
+                stackTrace = decodedString
+            }
+        }
+        
+        let filteredImages = filterImagesByStackTrace(allImages: allLoadedImages, stackTrace: stackTrace)
+        
+        if !filteredImages.isEmpty {
+            data["crash.loaded_images"] = AnyEncodable(filteredImages)
+        } else {
+            // Warning: No images matched for symbolication
+            print("⚠️ No images matched stack trace for crash symbolication")
+        }
+        
+        data["crash.platform"] = AnyEncodable("iOS")
         
         // Merge extra attributes
         data.merge(extraAttributes) { _, new in new }
@@ -518,15 +670,7 @@ public final class BusinessEventsClient {
             data: data
         )
         
-        // Log the complete event before sending
-        if let eventJSON = try? JSONEncoder.dynatrace.encode(event),
-           let eventString = String(data: eventJSON, encoding: .utf8) {
-            os_log("🔵 COMPLETE CRASH EVENT: %@", log: OSLog.default, type: .info, eventString)
-            print("🔵 COMPLETE CRASH EVENT:\n\(eventString)")
-        }
-        
         try sendSync(event: event, config: cfg)
-        os_log("Crash report sent synchronously", log: OSLog.default, type: .info)
     }
 
     // MARK: - Internals
@@ -570,8 +714,7 @@ public final class BusinessEventsClient {
     
     /// Synchronous send method specifically for crash reporting where async context is unreliable
     private func sendSync(event: CloudEvent, config: Config) throws {
-        os_log("🔵 sendSync: Starting synchronous network request to %@", log: OSLog.default, type: .info, config.endpoint.absoluteString)
-        print("🔵 sendSync: Endpoint = \(config.endpoint)")
+        logD("sendSync: Starting synchronous network request to %@", config.endpoint.absoluteString)
         
         var request = URLRequest(url: config.endpoint)
         request.httpMethod = "POST"
@@ -586,7 +729,7 @@ public final class BusinessEventsClient {
         request.setValue("application/cloudevent+json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder.dynatrace.encode(event)
 
-        print("🔵 sendSync: Request configured, creating URLSession task...")
+        logD("sendSync: Request configured, creating URLSession task...")
         
         // Use semaphore to make synchronous request
         let semaphore = DispatchSemaphore(value: 0)
@@ -594,44 +737,36 @@ public final class BusinessEventsClient {
         var responseError: Error?
         
         let task = URLSession.shared.dataTask(with: request) { data, response, error in
-            print("🔵 sendSync: Network callback received")
             if let error = error {
-                print("🔵 sendSync: Error = \(error)")
                 responseError = error
             } else {
                 responseCode = (response as? HTTPURLResponse)?.statusCode ?? -1
-                print("🔵 sendSync: Response code = \(responseCode)")
             }
             semaphore.signal()
         }
         
-        print("🔵 sendSync: Starting task...")
         task.resume()
         
-        print("🔵 sendSync: Waiting for response (timeout: 10s)...")
         // Wait for completion with timeout
         let timeout = semaphore.wait(timeout: .now() + 10.0)
         
         if timeout == .timedOut {
-            print("❌ sendSync: Request TIMED OUT")
-            os_log("❌ sendSync: Request timed out", log: OSLog.default, type: .error)
+            logE("sendSync: Request TIMED OUT")
             task.cancel()
             throw ClientError.badResponse(-1)
         }
         
         if let error = responseError {
-            print("❌ sendSync: Network error = \(error)")
+            logE("sendSync: Network error = %@", error.localizedDescription)
             throw error
         }
         
         guard responseCode == 202 else {
-            print("❌ sendSync: Bad response code = \(responseCode)")
-            os_log("❌ sendSync: Bad response code %d", log: OSLog.default, type: .error, responseCode)
+            logE("sendSync: Bad response code = %d", responseCode)
             throw ClientError.badResponse(responseCode)
         }
         
-        print("✅ sendSync: Successfully sent (202 Accepted)")
-        os_log("✅ sendSync: Successfully sent crash report", log: OSLog.default, type: .info)
+        logI("sendSync: Successfully sent (202 Accepted)")
     }
 
     
@@ -750,6 +885,135 @@ public struct AnyEncodable: Encodable {
     private let _encode: (Encoder) throws -> Void
     public init<T: Encodable>(_ wrapped: T) { self._encode = wrapped.encode }
     public func encode(to encoder: Encoder) throws { try _encode(encoder) }
+}
+
+// MARK: - Binary UUID Extraction
+
+private func getLoadedImages() -> [[String: String]] {
+    var images: [[String: String]] = []
+    
+    #if arch(x86_64) || arch(arm64)
+    let imageCount = _dyld_image_count()
+    
+    for i in 0..<imageCount {
+        guard let imageName = _dyld_get_image_name(i) else { continue }
+        let imagePath = String(cString: imageName)
+        let header = _dyld_get_image_header(i)
+        
+        // Get the base address (actual load address in memory)
+        let baseAddress = UInt(bitPattern: header)
+        let hexAddress = String(format: "0x%llx", baseAddress)
+        
+        // Extract just the image name (last path component)
+        let imageNameOnly = (imagePath as NSString).lastPathComponent
+        
+        images.append([
+            "name": imageNameOnly,
+            "path": imagePath,
+            "base_address": hexAddress
+        ])
+    }
+    
+    #else
+    print("⚠️ getLoadedImages() not supported on this architecture")
+    #endif
+    
+    return images
+}
+
+/// Filter loaded images to only those referenced in the stack trace
+/// This reduces payload size and focuses on relevant libraries for crash symbolication
+private func filterImagesByStackTrace(allImages: [[String: String]], stackTrace: String) -> [[String: String]] {
+    guard !stackTrace.isEmpty else {
+        return allImages
+    }
+    
+    // Extract library names from stack trace
+    // Stack trace format: "3   PaymentLibrary      0x0000000104d0b620 PaymentLibrary + 13856"
+    var referencedLibraries = Set<String>()
+    let lines = stackTrace.components(separatedBy: .newlines)
+    
+    for line in lines {
+        let components = line.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        if components.count >= 2 {
+            // Second component is the library name
+            let libraryName = components[1]
+            referencedLibraries.insert(libraryName)
+        }
+    }
+    
+    // Filter images to only those whose names appear in the stack trace
+    let filtered = allImages.filter { image in
+        guard let imageName = image["name"] else { return false }
+        return referencedLibraries.contains(imageName)
+    }
+    
+    // Log warning if no matches found (may indicate symbolication issues)
+    if filtered.isEmpty && !referencedLibraries.isEmpty {
+        print("⚠️ No image matches found for stack trace symbolication")
+    }
+    
+    return filtered
+}
+
+private func getBinaryUUID() -> String? {
+    #if arch(x86_64) || arch(arm64)
+    
+    // Use Objective-C runtime to get the exact image (dylib/framework) where BusinessEventsClient class is defined
+    guard let imageName = class_getImageName(BusinessEventsClient.self) else {
+        print("❌ class_getImageName returned nil for BusinessEventsClient")
+        return nil
+    }
+    
+    let imagePath = String(cString: imageName)
+    
+    // Get the mach header for this specific image
+    let imageCount = _dyld_image_count()
+    var targetHeader: UnsafePointer<mach_header>?
+    
+    for i in 0..<imageCount {
+        if let loadedImageName = _dyld_get_image_name(i),
+           String(cString: loadedImageName) == imagePath {
+            targetHeader = _dyld_get_image_header(i)
+            break
+        }
+    }
+    
+    guard let header64 = targetHeader?.withMemoryRebound(to: mach_header_64.self, capacity: 1, { $0 }) else {
+        print("❌ Could not find mach_header for framework image")
+        return nil
+    }
+    
+    // Navigate through load commands to find LC_UUID
+    var currentCommand = UnsafeRawPointer(header64).advanced(by: MemoryLayout<mach_header_64>.size)
+    
+    for _ in 0..<header64.pointee.ncmds {
+        let loadCommand = currentCommand.assumingMemoryBound(to: load_command.self)
+        
+        // LC_UUID = 0x1b
+        if loadCommand.pointee.cmd == 0x1b {
+            // uuid_command structure: load_command (8 bytes) + uuid (16 bytes)
+            let uuidBytes = currentCommand.advanced(by: MemoryLayout<load_command>.size).assumingMemoryBound(to: UInt8.self)
+            
+            let uuid = (0..<16).map { String(format: "%02X", uuidBytes[$0]) }
+            
+            // Format as: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+            let formattedUUID = uuid.enumerated().map { index, hex in
+                let needsDash = [4, 6, 8, 10].contains(index)
+                return (needsDash ? "-" : "") + hex
+            }.joined()
+            
+            return formattedUUID
+        }
+        
+        currentCommand = currentCommand.advanced(by: Int(loadCommand.pointee.cmdsize))
+    }
+    
+    print("❌ LC_UUID load command not found in PaymentLibrary.framework binary")
+    #else
+    print("❌ getBinaryUUID() only supports x86_64 and arm64 architectures")
+    #endif
+    return nil
 }
 
 // MARK: - JSON Encoder tuned for Dynatrace

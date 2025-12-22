@@ -58,13 +58,12 @@ class PaymentClient private constructor(
     /**
      * Unified configuration for the PaymentClient
      * @param paymentBaseUrl The base URL for the payment processing backend
-     * @param bizeventsEventProvider Event provider string (e.g., "com.my-app.payment-library")
-     * @param bizeventsDefaultEventType Default event type (e.g., "com.my-app.user-action")
-     * @param appVersion The application version (optional)
+     * 
+     * Note: Library version (appVersion) is automatically collected from BuildConfig
+     * and cannot be overridden to ensure proper crash deobfuscation in Dynatrace.
      */
     data class Config(
-        val paymentBaseUrl: String,
-        val appVersion: String? = null
+        val paymentBaseUrl: String
     )
 
     companion object {
@@ -87,12 +86,14 @@ class PaymentClient private constructor(
         // Register crash handler
         PaymentCrashHandler.register(context.applicationContext)
 
+        // Automatically collect library version from BuildConfig (not from host app)
+        val libraryVersion = BuildConfig.VERSION_NAME
+
         // Initialize the BusinessEventsClient using the new Secrets-aware method
-        Log.d("PaymentLibrary", "Initializing BusinessEventsClient from Secrets...")
         BusinessEventsClient.configureFromSecrets(
             context = context,
             eventProvider = "Android App", // Internal default, not customizable
-            appVersion = config.appVersion
+            appVersion = libraryVersion // Always use library version, not app version
         )
 
         // Se a URL for "TEST_ONLY", não inicializa o Retrofit
@@ -108,7 +109,6 @@ class PaymentClient private constructor(
             paymentService = null
         }
 
-        Log.d("PaymentLibrary", "PaymentLibrary initialized successfully.")
         DynatraceLogger.info("PaymentLibrary initialized successfully", "PaymentClient")
     }
 
@@ -137,7 +137,6 @@ class PaymentClient private constructor(
                 "payment.vendorId" to vendorId
             )
         ) {
-            Log.i("receivePayment", "Starting payment process for amount $amount")
             DynatraceLogger.info("Starting payment processing", "PaymentClient")
 
             if (crashStatus) {
@@ -146,8 +145,6 @@ class PaymentClient private constructor(
             }
 
             // Execute both executePayment and dummyDoSomething in parallel
-            Log.i("receivePayment", "Starting executePayment and dummyDoSomething in parallel")
-
             coroutineScope {
                 val paymentDeferred = async {
                     executePayment(amount, creditCardNumber, vendorName, vendorId, callback)
@@ -162,13 +159,9 @@ class PaymentClient private constructor(
                 dummyDeferred.await()
             }
 
-            Log.i("receivePayment", "Both executePayment and dummyDoSomething completed")
-
             // Add random delay like iOS version
-            Log.i("receivePayment", "Starting to sleep...")
             val randomDelayMs = (700..3000).random().toLong()
             delay(randomDelayMs)
-            Log.i("receivePayment", "Finished sleeping")
         }
     }
 
@@ -184,8 +177,7 @@ class PaymentClient private constructor(
                 }
             }
         } catch (ex: Exception) {
-            // Handle exception
-            Log.i("IP", "Was not able to get IP address...")
+            // Handle exception silently
         }
         return null
     }
@@ -206,21 +198,17 @@ class PaymentClient private constructor(
                 "payment.vendorId" to vendorId
             )
         ) {
-            Log.i("executePayment", "Inside executePayment method implementation")
-            Log.i("executePayment", "Starting to sleep for latency simulation...")
             val randomDelayMs = (700..3000).random().toLong()
             delay(randomDelayMs)
-            Log.i("executePayment", "Finished sleeping")
 
             // Use config.paymentBaseUrl
             if (config.paymentBaseUrl == "TEST_ONLY") {
                 if (amount > 0) {
                     val transactionId = UUID.randomUUID().toString()
                     callback.onPaymentSuccess(transactionId)
-                    Log.i("executePayment", "Payment successful in TEST_ONLY mode")
                 } else {
                     callback.onPaymentFailure("Amount must be positive")
-                    Log.w("executePayment", "Payment failed in TEST_ONLY mode: Amount not positive")
+                    Log.w("executePayment", "⚠️ Payment failed in TEST_ONLY mode: Amount not positive")
                 }
                 return@withAction
             }
@@ -234,19 +222,18 @@ class PaymentClient private constructor(
                         val transactionId = response.body()?.transactionId
                         if (transactionId != null) {
                             callback.onPaymentSuccess(transactionId)
-                            Log.i("executePayment", "Payment completed. Transaction ID: $transactionId")
                         } else {
                             callback.onPaymentFailure("Transaction ID not found in response")
-                            Log.e("executePayment", "Failed to get transaction ID from response")
+                            Log.e("executePayment", "❌ Failed to get transaction ID from response")
                         }
                     } else {
                         val statusCode = response?.code() ?: 0
                         callback.onPaymentFailure("HTTP $statusCode")
-                        Log.e("executePayment", "Payment API call failed with HTTP status code: $statusCode")
+                        Log.e("executePayment", "❌ Payment API call failed with HTTP status code: $statusCode")
                     }
                 } catch (e: Exception) {
                     callback.onPaymentFailure(e.message ?: "Unknown error")
-                    Log.e("executePayment", "Payment network request failed: ${e.message}")
+                    Log.e("executePayment", "❌ Payment network request failed: ${e.message}")
                 }
             }
         }
@@ -254,30 +241,24 @@ class PaymentClient private constructor(
 
     private suspend fun dummyDoSomething() {
         BusinessEventsClient.withAction(name = "dummyDoSomething") { // Renamed action
-            Log.v("PaymentClient", "Started dummyDoSomething")
             val randomDelayMs = (700..3000).random().toLong()
             delay(randomDelayMs)
             dummyDoSomethingElse()
-            Log.v("PaymentClient", "Finished dummyDoSomething")
         }
     }
 
     private suspend fun dummyDoSomethingElse() {
         BusinessEventsClient.withAction(name = "dummyDoSomethingElse") { // Renamed action
-            Log.v("PaymentClient", "Started dummyDoSomethingElse")
             val randomDelayMs = (700..3000).random().toLong()
             delay(randomDelayMs)
             dummyDoSomethingMore()
-            Log.v("PaymentClient", "Finished dummyDoSomethingElse")
         }
     }
 
     private suspend fun dummyDoSomethingMore() {
         BusinessEventsClient.withAction(name = "dummyDoSomethingMore") {
-            Log.v("PaymentClient", "Started dummyDoSomethingMore")
             val randomDelayMs = (700..3000).random().toLong()
             delay(randomDelayMs)
-            Log.v("PaymentClient", "Finished dummyDoSomethingMore")
         }
     }
 
@@ -311,7 +292,7 @@ class PaymentClient private constructor(
                         callback.onCancellationFailure("Cancellation failed with code: ${response?.code()}")
                     }
                 } catch (e: Exception) {
-                    Log.e("PaymentClient", "Error canceling payment", e)
+                    Log.e("PaymentClient", "❌ Error canceling payment", e)
                     callback.onCancellationFailure(e.message ?: "Unknown error")
                 }
             }

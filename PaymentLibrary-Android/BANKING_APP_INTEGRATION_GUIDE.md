@@ -124,8 +124,10 @@ class BankingApplication : Application() {
                 auth = BusinessEventsClient.Auth.ApiToken("dt0c01.YOUR_BIZEVENTS_TOKEN"), // Token with bizevents.ingest scope
                 eventProvider = "com.yourbank.banking.android",
                 defaultEventType = "com.yourbank.user.action",
-                appVersion = getAppVersion(),
-                deviceInfo = getDeviceInfo()
+                deviceInfo = getDeviceInfo(),
+                logLevel = BusinessEventsClient.LogLevel.INFO  // Default: INFO (recommended for production)
+                // NOTE: appVersion is automatically collected from PaymentLibrary's BuildConfig
+                // This ensures Dynatrace always receives the correct library version for crash deobfuscation
             )
         )
         
@@ -138,21 +140,12 @@ class BankingApplication : Application() {
             endpoint = "https://YOUR_TENANT.live.dynatrace.com/api/v2/bizevents/ingest",
             auth = BusinessEventsClient.Auth.ApiToken("dt0c01.YOUR_BIZEVENTS_TOKEN"), 
             eventProvider = "com.yourbank.banking.android",
-            defaultEventType = "com.yourbank.user.action",
-            appVersion = getAppVersion()
+            defaultEventType = "com.yourbank.user.action"
+            // NOTE: appVersion is automatically collected from PaymentLibrary's BuildConfig
         )
         */
         
         DynatraceLogger.info("Banking App initialized with Dynatrace integration", "BankingApplication")
-    }
-    
-    private fun getAppVersion(): String {
-        return try {
-            val packageInfo = packageManager.getPackageInfo(packageName, 0)
-            packageInfo.versionName ?: "unknown"
-        } catch (e: Exception) {
-            "unknown"
-        }
     }
     
     private fun getDeviceInfo(): String {
@@ -164,6 +157,43 @@ class BankingApplication : Application() {
 ### Enhanced Device Metadata Collection
 
 When using `configureWithDeviceMetadata()`, the PaymentLibrary automatically collects comprehensive device information that gets included in all business events:
+
+### Log Level Configuration
+
+The PaymentLibrary supports configurable log levels to control logging verbosity. This is especially useful for reducing noise in production builds while keeping detailed debugging available during development.
+
+**Available Log Levels:**
+- `LogLevel.VERBOSE` - All logs including very detailed debug information
+- `LogLevel.DEBUG` - Debug information and above
+- `LogLevel.INFO` - Informational messages and above (default, recommended for production)
+- `LogLevel.WARN` - Warnings and errors only
+- `LogLevel.ERROR` - Error messages only
+- `LogLevel.NONE` - No logging
+
+**Usage:**
+```kotlin
+BusinessEventsClient.configure(
+    BusinessEventsClient.Config(
+        endpoint = "https://YOUR_TENANT.live.dynatrace.com/api/v2/bizevents/ingest",
+        auth = BusinessEventsClient.Auth.ApiToken("dt0c01.YOUR_TOKEN"),
+        eventProvider = "com.yourbank.banking.android",
+        defaultEventType = "com.yourbank.user.action",
+        logLevel = BusinessEventsClient.LogLevel.INFO  // Set desired log level
+    )
+)
+```
+
+**Best Practices:**
+- **Production**: Use `LogLevel.INFO` or `LogLevel.WARN` for cleaner logs
+- **Development**: Use `LogLevel.DEBUG` or `LogLevel.VERBOSE` for troubleshooting
+- **Testing**: Use `LogLevel.INFO` to verify key operations without noise
+
+The log level configuration affects all internal logging from BusinessEventsClient, including:
+- Action start/end notifications
+- Timeout handling
+- Event serialization
+- Network call timing
+- Device metadata collection
 
 #### Device & Hardware Information
 - Device manufacturer, model, brand, and product name
@@ -217,6 +247,40 @@ device.battery_level, device.is_charging
 </application>
 ```
 
+## 2.1. Automatic Library Version Collection 🔐
+
+**IMPORTANT:** The PaymentLibrary automatically collects its own version information internally and does not allow developers to override it. This is critical for proper crash deobfuscation in Dynatrace.
+
+### Why This Matters
+
+When crashes occur and stack traces are sent to Dynatrace, the system needs the **exact library version** to correctly symbolicate and deobfuscate the stack trace. If developers could override this value:
+
+1. ❌ **Wrong Version = Failed Deobfuscation**: Dynatrace would try to use the wrong mapping files
+2. ❌ **App Version != Library Version**: Using the host app's version instead of the library's version breaks symbolication
+3. ❌ **Security Risk**: Developers might accidentally expose internal version schemes
+
+### How It Works
+
+```kotlin
+// ✅ CORRECT: Library version is collected automatically
+paymentClient = PaymentClient.getInstance(
+    config = PaymentClient.Config(
+        paymentBaseUrl = "https://api.yourbank.com"
+        // No appVersion parameter - collected from BuildConfig automatically
+    ),
+    context = this
+)
+
+// ❌ REMOVED: You can no longer pass appVersion
+// This parameter has been removed from the public API
+```
+
+The library internally uses `BuildConfig.VERSION_NAME` from the PaymentLibrary module (currently "1.0.0"), ensuring that:
+- ✅ Dynatrace always receives the correct library version
+- ✅ Stack traces can be properly deobfuscated
+- ✅ Crash reports are accurately symbolicated
+- ✅ No developer error can break crash analysis
+
 ## 3. Required Permissions for Enhanced Device Metadata
 
 If you plan to use the enhanced `configureWithDeviceMetadata()` method for comprehensive device information collection, add these permissions to your `AndroidManifest.xml`:
@@ -262,9 +326,12 @@ class PaymentActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_payment)
         
-        // Initialize PaymentClient
+        // Initialize PaymentClient with new simplified Config
         paymentClient = PaymentClient.getInstance(
-            baseUrl = "https://api.yourbank.com",
+            config = PaymentClient.Config(
+                paymentBaseUrl = "https://api.yourbank.com"
+                // NOTE: Library version is automatically collected internally
+            ),
             context = this
         )
         
