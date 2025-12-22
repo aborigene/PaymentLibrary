@@ -24,7 +24,6 @@ class PaymentCrashHandler(private val context: Context, private val originalHand
             if (originalHandler !is PaymentCrashHandler) {
                 instance = PaymentCrashHandler(context, originalHandler)
                 Thread.setDefaultUncaughtExceptionHandler(instance)
-                Log.i("registered status", "register: registered successfully")
                 
                 // Send any saved crash reports from previous crashes
                 sendSavedCrashReports(context)
@@ -34,8 +33,6 @@ class PaymentCrashHandler(private val context: Context, private val originalHand
         private fun sendSavedCrashReports(context: Context) {
             val crashFile = File(context.filesDir, "crash_report.json")
             if (!crashFile.exists()) return
-            
-            Log.i("PaymentCrashHandler", "📤 Found saved crash report, sending...")
             
             try {
                 val crashJson = crashFile.readText()
@@ -69,13 +66,12 @@ class PaymentCrashHandler(private val context: Context, private val originalHand
                         )
                         // Delete file after successful send
                         crashFile.delete()
-                        Log.i("PaymentCrashHandler", "✅ Saved crash report sent and deleted")
                     } catch (e: Exception) {
                         Log.e("PaymentCrashHandler", "❌ Failed to send saved crash report: ${e.message}")
                     }
                 }
             } catch (e: Exception) {
-                Log.e("PaymentCrashHandler", "Failed to parse saved crash report: ${e.message}")
+                Log.e("PaymentCrashHandler", "❌ Failed to parse saved crash report: ${e.message}")
             }
         }
 
@@ -109,9 +105,8 @@ class PaymentCrashHandler(private val context: Context, private val originalHand
             val crashFile = File(context.filesDir, "crash_report.json")
             try {
                 crashFile.writeText(crashData.toString())
-                Log.i("PaymentCrashHandler", "💾 Crash data saved to disk")
             } catch (e: Exception) {
-                Log.e("PaymentCrashHandler", "Failed to save crash data: ${e.message}")
+                Log.e("PaymentCrashHandler", "❌ Failed to save crash data: ${e.message}")
             }
             
             var crashSentSuccessfully = false
@@ -126,7 +121,6 @@ class PaymentCrashHandler(private val context: Context, private val originalHand
                             error = description
                         )
                     }
-                    Log.i("PaymentCrashHandler", "✅ Open action finished with CRASH status")
                 } catch (e: Exception) {
                     Log.e("PaymentCrashHandler", "❌ Failed to finish open action: ${e.message}")
                 }
@@ -149,7 +143,6 @@ class PaymentCrashHandler(private val context: Context, private val originalHand
                         extraAttributes = extraAttributes
                     )
                 }
-                Log.i("PaymentCrashHandler", "✅ Crash report sent successfully")
                 crashSentSuccessfully = true
             } catch (e: Exception) {
                 Log.e("PaymentCrashHandler", "❌ Failed to send crash report: ${e.message}", e)
@@ -158,7 +151,6 @@ class PaymentCrashHandler(private val context: Context, private val originalHand
             // Delete saved report only if we successfully sent it
             if (crashSentSuccessfully) {
                 crashFile.delete()
-                Log.i("PaymentCrashHandler", "✅ Saved crash report deleted after successful send")
             } else {
                 Log.w("PaymentCrashHandler", "⚠️ Crash report saved to disk for next reboot")
             }
@@ -173,15 +165,11 @@ class PaymentCrashHandler(private val context: Context, private val originalHand
         }
         crashReported = true
         
-        Log.i("PaymentCrashHandler", "🔴 CRASH HANDLER CALLED - Exception: ${throwable.javaClass.simpleName}")
-        
         val sw = StringWriter()
         val pw = PrintWriter(sw)
         throwable.printStackTrace(pw)
         val stackTrace = sw.toString()
         val description = throwable.message
-        
-        Log.i("PaymentCrashHandler", "🔴 StackTrace:\n$stackTrace")
         
         // Get current action context
         val actionContext = BusinessEventsClient.getCurrentActionContext()
@@ -199,9 +187,8 @@ class PaymentCrashHandler(private val context: Context, private val originalHand
         val crashFile = File(context.filesDir, "crash_report.json")
         try {
             crashFile.writeText(crashData.toString())
-            Log.i("PaymentCrashHandler", "💾 Crash data saved to disk")
         } catch (e: Exception) {
-            Log.e("PaymentCrashHandler", "Failed to save crash data: ${e.message}")
+            Log.e("PaymentCrashHandler", "❌ Failed to save crash data: ${e.message}")
         }
         
         var crashSentSuccessfully = false
@@ -209,7 +196,6 @@ class PaymentCrashHandler(private val context: Context, private val originalHand
         // If there's an open action, finish it with CRASH status first
         actionContext?.let { ctx ->
             try {
-                Log.i("PaymentCrashHandler", "🔴 Finishing open action '${ctx.name}' with CRASH status...")
                 runBlocking {
                     BusinessEventsClient.endAction(
                         actionId = ctx.id,
@@ -217,7 +203,6 @@ class PaymentCrashHandler(private val context: Context, private val originalHand
                         error = description
                     )
                 }
-                Log.i("PaymentCrashHandler", "✅ Open action finished with CRASH status")
             } catch (e: Exception) {
                 Log.e("PaymentCrashHandler", "❌ Failed to finish open action: ${e.message}")
             }
@@ -232,7 +217,6 @@ class PaymentCrashHandler(private val context: Context, private val originalHand
         )
         
         try {
-            Log.i("PaymentCrashHandler", "🔴 Sending crash report...")
             runBlocking {
                 BusinessEventsClient.sendCrashReport(
                     parentActionId = parentActionId,
@@ -241,7 +225,6 @@ class PaymentCrashHandler(private val context: Context, private val originalHand
                     extraAttributes = extraAttributes
                 )
             }
-            Log.i("PaymentCrashHandler", "✅ Crash report sent successfully")
             crashSentSuccessfully = true
         } catch (e: Exception) {
             Log.e("PaymentCrashHandler", "❌ Failed to send crash report: ${e.message}")
@@ -250,7 +233,6 @@ class PaymentCrashHandler(private val context: Context, private val originalHand
         // Delete saved report only if we successfully sent it
         if (crashSentSuccessfully) {
             crashFile.delete()
-            Log.i("PaymentCrashHandler", "✅ Saved crash report deleted after successful send")
         } else {
             Log.w("PaymentCrashHandler", "⚠️ Crash report saved to disk for next reboot")
         }

@@ -11,9 +11,18 @@ android {
     namespace = "com.dynatracese.paymentlibrary"
     compileSdk = 34
 
+    buildFeatures {
+        buildConfig = true
+    }
+
     defaultConfig {
         minSdk = 24
-        targetSdk = 34
+        
+        // Build config fields for version tracking
+        buildConfigField("String", "LIBRARY_PACKAGE_NAME", "\"com.dynatracese.paymentlibrary\"")
+        buildConfigField("int", "VERSION_CODE", "2")
+        buildConfigField("String", "VERSION_NAME", "\"1.1\"")
+        
         consumerProguardFiles("consumer-rules.pro")
     }
     
@@ -55,6 +64,7 @@ dependencies {
     implementation("com.google.android.material:material:1.5.0")
 
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
 }

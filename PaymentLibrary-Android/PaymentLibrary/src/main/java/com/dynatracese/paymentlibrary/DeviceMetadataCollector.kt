@@ -95,6 +95,7 @@ object DeviceMetadataCollector {
         val attributes = mutableMapOf<String, Any>()
 
         // Device Hardware Information
+        attributes["device.os.family"] = "Android"
         attributes["device.os.name"] = "Android"
         attributes["device.os.version"] = metadata.osVersion
         attributes["device.os.versionCode"] = metadata.osVersionCode

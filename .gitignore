@@ -18,3 +18,5 @@ local.properties
 **/xcuserdata/
 
 output/
+out/
+build/

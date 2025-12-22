@@ -75,7 +75,7 @@ public final class PaymentClient {
     /// - Parameters:
     ///   - endpoint: Dynatrace bizevents ingest endpoint
     ///   - auth: Authentication method (API token or Bearer token)
-    ///   - eventProvider: Event provider identifier (optional, defaults to "Custom RUM Application")
+    ///   - eventProvider: Event provider identifier (optional, defaults to "CustomRumSDK")
     public func configureBusinessEventsWithDeviceMetadata(
         endpoint: URL,
         auth: BusinessEventsClient.Auth,
@@ -421,6 +421,44 @@ public final class PaymentClient {
             let randomNumber: UInt32 = UInt32(Int.random(in: 700...3000))
             try await Task.sleep(nanoseconds: UInt64(randomNumber) * 1_000_000)
             PaymentClient.logger.verbose("Finished dummyDoSomethingMore.")
+        }
+    }
+    
+    // MARK: - Test Methods
+    
+    /// Test crash reporting by manually sending a crash event (doesn't actually crash the app)
+    /// This allows you to verify crash.uuid and other crash metadata are being sent correctly
+    public func testCrashReporting() {
+        print("🧪 TEST: Manually testing crash reporting...")
+        os_log("🧪 TEST: Manually testing crash reporting...", log: OSLog.default, type: .info)
+        
+        // Get current action context
+        let actionContext = BusinessEventsClient.shared.getCurrentActionContext()
+        let sessionId = BusinessEventsClient.shared.sessionId
+        
+        let testAttributes: [String: AnyEncodable] = [
+            "crash.class": AnyEncodable("TestCrash"),
+            "crash.stackTrace": AnyEncodable("Test stack trace\nLine 1\nLine 2"),
+            "device": AnyEncodable("Test Device"),
+            "test": AnyEncodable(true)
+        ]
+        
+        do {
+            print("🧪 TEST: Calling sendCrashReportSync...")
+            os_log("🧪 TEST: Calling sendCrashReportSync...", log: OSLog.default, type: .info)
+            
+            try BusinessEventsClient.shared.sendCrashReportSync(
+                parentActionId: actionContext?.id,
+                sessionId: sessionId,
+                error: "TEST CRASH - This is a test crash report",
+                extraAttributes: testAttributes
+            )
+            
+            print("✅ TEST: Crash report sent successfully!")
+            os_log("✅ TEST: Crash report sent successfully!", log: OSLog.default, type: .info)
+        } catch {
+            print("❌ TEST: Failed to send crash report: \(error)")
+            os_log("❌ TEST: Failed to send crash report: %@", log: OSLog.default, type: .error, error.localizedDescription)
         }
     }
 }

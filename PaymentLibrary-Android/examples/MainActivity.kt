@@ -27,9 +27,11 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         
-        // Initialize PaymentClient
+        // Initialize PaymentClient with new Config (version collected automatically)
         paymentClient = PaymentClient.getInstance(
-            baseUrl = "https://api.yourbank.com", // Your actual payment API
+            config = PaymentClient.Config(
+                paymentBaseUrl = "https://api.yourbank.com" // Your actual payment API
+            ),
             context = this
         )
         

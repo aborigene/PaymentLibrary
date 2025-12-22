@@ -256,9 +256,11 @@ public class DeviceMetadataCollector {
             "device.system_name": metadata.deviceSystemName,
             "device.identifier": metadata.deviceIdentifierForVendor ?? "unknown",
             
-            // Operating System
-            "device.os_version": metadata.osVersion,
-            "device.os_version_code": metadata.osVersionCode,
+            // Operating System (aligned with Android field names)
+            "device.os.family": "iOS",
+            "device.os.name": metadata.deviceSystemName, // "iOS", "iPadOS", "tvOS", etc.
+            "device.os.version": metadata.osVersion,
+            "device.os.versionCode": metadata.osVersionCode,
             "device.build_version": metadata.buildVersion,
             "device.kernel_version": metadata.kernelVersion,
             
@@ -381,7 +383,7 @@ public class DeviceMetadataCollector {
         case "AppleTV5,3": return "Apple TV"
         case "AppleTV6,2": return "Apple TV 4K"
         case "AudioAccessory1,1": return "HomePod"
-        case "i386", "x86_64": return "Simulator \(mapToDevice(identifier: ProcessInfo().environment["SIMULATOR_MODEL_IDENTIFIER"] ?? "iOS"))"
+        case "i386", "x86_64", "arm64": return "Simulator \(mapToDevice(identifier: ProcessInfo().environment["SIMULATOR_MODEL_IDENTIFIER"] ?? "iOS"))"
         default: return identifier
         }
     }
