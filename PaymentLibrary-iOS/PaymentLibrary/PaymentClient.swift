@@ -421,6 +421,7 @@ public final class PaymentClient {
             let randomNumber: UInt32 = UInt32(Int.random(in: 700...3000))
             try await Task.sleep(nanoseconds: UInt64(randomNumber) * 1_000_000)
             PaymentClient.logger.verbose("Finished dummyDoSomethingMore.")
+            PaymentClient.logger.verbose("---")
         }
     }
     
