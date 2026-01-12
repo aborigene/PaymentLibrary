@@ -32,10 +32,12 @@ final class CrashReporterKit {
     // MARK: - Public Setup Method
 
     func enable() {
+        print("📋 CrashReporterKit.enable() called - registering handlers...")
         NSSetUncaughtExceptionHandler { exception in
             CrashReporterKit.shared.handle(exception: exception)
         }
         setupSignalHandler()
+        print("✅ CrashReporterKit handlers registered successfully")
         // Send any saved crash reports from previous crashes that failed to send
         sendCrashReportIfExists()
     }

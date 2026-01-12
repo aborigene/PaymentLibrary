@@ -16,6 +16,7 @@ local.properties
 
 # Xcode user-specific files
 **/xcuserdata/
+PaymentLibrary.xcframework
 
 output/
 out/

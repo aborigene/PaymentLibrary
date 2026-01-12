@@ -82,7 +82,7 @@ public final class BusinessEventsClient {
                     appVersion: String? = nil,
                     deviceInfo: String? = nil,
                     deviceMetadata: DeviceMetadataCollector.DeviceMetadata? = nil,
-                    actionTimeoutSeconds: TimeInterval = 7.0,
+                    actionTimeoutSeconds: TimeInterval = 30.0,
                     logLevel: LogLevel = .debug) {
             self.endpoint = endpoint
             self.auth = auth

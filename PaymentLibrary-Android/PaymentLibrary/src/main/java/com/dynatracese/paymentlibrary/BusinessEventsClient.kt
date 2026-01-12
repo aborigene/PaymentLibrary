@@ -84,7 +84,7 @@ object BusinessEventsClient {
         val deviceInfo: String? = null,         // optional meta
         val deviceMetadata: DeviceMetadataCollector.DeviceMetadata? = null, // comprehensive device metadata
         val maxRetryAttempts: Int = 3,          // configurable retry count
-        val actionTimeoutSeconds: Long = 7,     // timeout in seconds before auto-finishing actions
+        val actionTimeoutSeconds: Long = 30,     // timeout in seconds before auto-finishing actions
         val logLevel: LogLevel = LogLevel.INFO  // default log level
     )
 
