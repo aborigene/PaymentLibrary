@@ -82,7 +82,9 @@ final class CrashReporterKit {
         }
         
         // Now send the crash report (parent will be the action we just finished)
-        let parentActionId = actionContext?.id
+        // Use currentActionId if available (crash during an action), otherwise fall back to sessionActionId
+        // This ensures crash is always linked to session_started parent when no action is active
+        let parentActionId = actionContext?.id ?? BusinessEventsClient.shared.sessionActionId
         
         // Write to file for backup FIRST (before attempting send)
         // Save as structured data so we can send identical event on next reboot
@@ -160,7 +162,9 @@ final class CrashReporterKit {
             }
             
             // Now send the crash report (parent will be the action we just finished)
-            let parentActionId = actionContext?.id
+            // Use currentActionId if available (crash during an action), otherwise fall back to sessionActionId
+            // This ensures crash is always linked to session_started parent when no action is active
+            let parentActionId = actionContext?.id ?? BusinessEventsClient.shared.sessionActionId
             
             // Write to file for backup FIRST
             // Save as structured data so we can send identical event on next reboot

@@ -56,13 +56,17 @@ class PaymentCrashHandler {
         ]
         
         do {
+            // Use currentActionId if available (crash during an action), otherwise fall back to sessionActionId
+            // This ensures crash is always linked to session_started parent when no action is active
+            let parentId = BusinessEventsClient.currentActionId ?? BusinessEventsClient.shared.sessionActionId
+            
             try BusinessEventsClient.shared.sendCrashReportSync(
-                parentActionId: BusinessEventsClient.currentActionId,
+                parentActionId: parentId,
                 sessionId: BusinessEventsClient.shared.sessionId,
                 error: description,
                 extraAttributes: extraAttributes
             )
-            os_log("Crash report sent via BusinessEventsClient with mapping identifiers.", type: .info)
+            os_log("Crash report sent via BusinessEventsClient with mapping identifiers (parent: %@).", type: .info, parentId?.uuidString ?? "none")
         } catch {
             os_log("Failed to send crash report: %@", type: .error, error.localizedDescription)
         }

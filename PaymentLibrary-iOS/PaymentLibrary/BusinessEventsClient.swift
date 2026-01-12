@@ -38,7 +38,7 @@ public final class BusinessEventsClient {
     // Session management
     private var hasSessionStarted = false
     public private(set) var sessionId: String = UUID().uuidString // Exposed for crash reporting
-    private var sessionActionId: UUID?
+    public private(set) var sessionActionId: UUID? // Exposed for crash reporting - ID of session_started action
     
     // Task-local storage for thread-safe action tracking
     @TaskLocal static var currentActionId: UUID?
