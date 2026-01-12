@@ -129,13 +129,6 @@ public final class PaymentClient {
         print("⏱️ Waiting 500ms for CrashReporterKit to fully initialize...")
         Thread.sleep(forTimeInterval: 0.5)
         
-        // CRASH IMMEDIATELY AFTER INITIALIZATION (for testing synchronous session initialization)
-        PaymentClient.logger.error("🔥🔥🔥 ABOUT TO CRASH - Testing synchronous session initialization 🔥🔥🔥")
-        print("🔥🔥🔥 ABOUT TO CRASH - Testing synchronous session initialization 🔥🔥🔥")
-        
-        // Trigger SIGABRT signal directly - guaranteed to be caught by signal handler
-        raise(SIGABRT)
-        
         return i
     }
     
@@ -179,6 +172,7 @@ public final class PaymentClient {
         // Give CrashReporterKit time to fully register handlers with the system
         print("⏱️ Waiting 500ms for CrashReporterKit to fully initialize...")
         Thread.sleep(forTimeInterval: 0.5)
+        print("⏱️ Done.")
         
         return i
     }
