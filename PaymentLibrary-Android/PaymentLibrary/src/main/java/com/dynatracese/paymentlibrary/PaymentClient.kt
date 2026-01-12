@@ -74,9 +74,11 @@ class PaymentClient private constructor(
         fun getInstance(config: Config, context: Context): PaymentClient {
             // Use the application context to prevent memory leaks
             val appContext = context.applicationContext
-            return INSTANCE ?: synchronized(this) {
+            val instance = INSTANCE ?: synchronized(this) {
                 INSTANCE ?: PaymentClient(config, appContext).also { INSTANCE = it }
             }
+            
+            return instance
         }
     }
 

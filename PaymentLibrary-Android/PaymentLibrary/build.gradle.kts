@@ -20,8 +20,8 @@ android {
         
         // Build config fields for version tracking
         buildConfigField("String", "LIBRARY_PACKAGE_NAME", "\"com.dynatracese.paymentlibrary\"")
-        buildConfigField("int", "VERSION_CODE", "2")
-        buildConfigField("String", "VERSION_NAME", "\"1.1\"")
+        buildConfigField("int", "VERSION_CODE", "3")
+        buildConfigField("String", "VERSION_NAME", "\"1.2\"")
         
         consumerProguardFiles("consumer-rules.pro")
     }

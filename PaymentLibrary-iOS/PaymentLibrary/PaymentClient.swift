@@ -124,6 +124,18 @@ public final class PaymentClient {
         PaymentClient.configureLogging()
         let i = PaymentClient(baseUrl: baseUrl)
         instance = i
+        
+        // Give CrashReporterKit time to fully register handlers with the system
+        print("⏱️ Waiting 500ms for CrashReporterKit to fully initialize...")
+        Thread.sleep(forTimeInterval: 0.5)
+        
+        // CRASH IMMEDIATELY AFTER INITIALIZATION (for testing synchronous session initialization)
+        PaymentClient.logger.error("🔥🔥🔥 ABOUT TO CRASH - Testing synchronous session initialization 🔥🔥🔥")
+        print("🔥🔥🔥 ABOUT TO CRASH - Testing synchronous session initialization 🔥🔥🔥")
+        
+        // Trigger SIGABRT signal directly - guaranteed to be caught by signal handler
+        raise(SIGABRT)
+        
         return i
     }
     
@@ -163,6 +175,11 @@ public final class PaymentClient {
         }
         
         instance = i
+        
+        // Give CrashReporterKit time to fully register handlers with the system
+        print("⏱️ Waiting 500ms for CrashReporterKit to fully initialize...")
+        Thread.sleep(forTimeInterval: 0.5)
+        
         return i
     }
 
@@ -421,6 +438,7 @@ public final class PaymentClient {
             let randomNumber: UInt32 = UInt32(Int.random(in: 700...3000))
             try await Task.sleep(nanoseconds: UInt64(randomNumber) * 1_000_000)
             PaymentClient.logger.verbose("Finished dummyDoSomethingMore.")
+            PaymentClient.logger.verbose("---")
         }
     }
     

@@ -84,7 +84,7 @@ object BusinessEventsClient {
         val deviceInfo: String? = null,         // optional meta
         val deviceMetadata: DeviceMetadataCollector.DeviceMetadata? = null, // comprehensive device metadata
         val maxRetryAttempts: Int = 3,          // configurable retry count
-        val actionTimeoutSeconds: Long = 7,     // timeout in seconds before auto-finishing actions
+        val actionTimeoutSeconds: Long = 30,     // timeout in seconds before auto-finishing actions
         val logLevel: LogLevel = LogLevel.INFO  // default log level
     )
 
@@ -115,7 +115,7 @@ object BusinessEventsClient {
         if (logLevel.ordinal <= LogLevel.ERROR.ordinal) Log.e(tag, message)
     }
 
-    // Configure before use
+    // Configure before use (blocks until session_started event is sent)
     fun configure(config: Config) {
         this.config = config
         this.logLevel = config.logLevel
@@ -129,12 +129,12 @@ object BusinessEventsClient {
             logD("BusinessEventsClient", "IP Address: ${metadata.deviceIpAddress}")
         }
         
-        // Automatically create session_started event on first configuration
+        // Automatically create session_started event on first configuration (synchronously)
         if (!hasSessionStarted) {
-            createSessionStartedEvent()
+            createSessionStartedEventSync()
         }
 
-        logI("BusinessEventsClient", "Configured with log level: ${config.logLevel}")
+        logI("BusinessEventsClient", "✅ BusinessEventsClient configured and session initialized")
     }
 
     /**
@@ -596,6 +596,79 @@ object BusinessEventsClient {
             } catch (e: Exception) {
                 logE("BusinessEventsClient", "❌ Failed to create session_started event: ${e.message}")
             }
+        }
+    }
+    
+    // Synchronous version for configure() - blocks until session_started is sent
+    private fun createSessionStartedEventSync() {
+        val cfg = config ?: run {
+            logE("BusinessEventsClient", "❌ Cannot create session_started event: BusinessEventsClient not configured")
+            return
+        }
+        
+        // Mark session as started to prevent duplicate events
+        hasSessionStarted = true
+        
+        val latch = java.util.concurrent.CountDownLatch(1)
+        var initError: Exception? = null
+        
+        GlobalScope.launch {
+            try {
+                // Collect device metadata for session start
+                val deviceAttributes = cfg.deviceMetadata?.let { metadata ->
+                    DeviceMetadataCollector.toEventAttributes(metadata)
+                } ?: emptyMap()
+                
+                // Add session-specific attributes
+                val attributes = deviceAttributes.toMutableMap()
+                attributes["session.id"] = sessionId
+                attributes["session.start_time"] = DateFormatter.dtTime.format(Date())
+                attributes["event.provider"] = cfg.eventProvider
+                attributes["session.initialization_type"] = "business_events_configured"
+                
+                // Begin session_started event - this will become the parent for all first-level actions
+                val actionId = beginAction(BeginOptions(
+                    name = "session_started",
+                    attributes = attributes
+                ))
+                
+                // Store session action ID to use as default parent for first-level actions
+                sessionActionId = actionId
+                
+                // End session_started event immediately (blocks until sent)
+                endAction(
+                    actionId,
+                    status = "SUCCESS",
+                    extraAttributes = mapOf(
+                        "session.duration_ms" to 0,
+                        "session.components_initialized" to listOf(
+                            "BusinessEventsClient",
+                            "DeviceMetadataCollector"
+                        )
+                    )
+                )
+                
+                logI("BusinessEventsClient", "✅ Session started event sent successfully")
+                
+            } catch (e: Exception) {
+                initError = e
+                logE("BusinessEventsClient", "❌ Failed to create session_started event: ${e.message}")
+            } finally {
+                latch.countDown()
+            }
+        }
+        
+        // Block until session_started is sent (with 5 second timeout)
+        try {
+            val completed = latch.await(5, java.util.concurrent.TimeUnit.SECONDS)
+            if (!completed) {
+                logW("BusinessEventsClient", "⚠️ Session initialization timed out after 5 seconds")
+            } else if (initError != null) {
+                logW("BusinessEventsClient", "⚠️ Session initialization completed with error: ${initError?.message}")
+            }
+        } catch (e: InterruptedException) {
+            logE("BusinessEventsClient", "❌ Session initialization interrupted: ${e.message}")
+            Thread.currentThread().interrupt()
         }
     }
 }
