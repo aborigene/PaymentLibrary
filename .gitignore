@@ -16,3 +16,9 @@ local.properties
 
 # Xcode user-specific files
 **/xcuserdata/
+
+*.xcframework
+PaymentLibrary-Android/output
+PaymentLibrary-iOS/output
+PaymentLibrary-iOS/helperScripts/deofuscation/out
+
