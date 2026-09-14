@@ -1,6 +1,19 @@
 import Foundation
 import os.log
 
+private extension PaymentClient.LogLevel {
+    var asBECLogLevel: BusinessEventsClient.LogLevel {
+        switch self {
+        case .verbose: return .verbose
+        case .debug:   return .debug
+        case .info:    return .info
+        case .warn:    return .warn
+        case .error:   return .error
+        case .none:    return .none
+        }
+    }
+}
+
 
 
 // Assuming DynatraceDestination is available in this module or imported
@@ -41,6 +54,10 @@ struct PaymentCancellationRequest: Encodable {
 // MARK: - Cliente
 public final class PaymentClient {
 
+    public enum LogLevel {
+        case verbose, debug, info, warn, error, none
+    }
+
     // Logger as a static property to avoid module interface verification issues
     private static let logger = SwiftyBeaver.self
 
@@ -79,13 +96,15 @@ public final class PaymentClient {
     public func configureBusinessEventsWithDeviceMetadata(
         endpoint: URL,
         auth: BusinessEventsClient.Auth,
-        eventProvider: String? = nil
+        eventProvider: String? = nil,
+        logLevel: LogLevel = .info
     ) {
         BusinessEventsClient.shared.configureWithDeviceMetadata(
             endpoint: endpoint,
             auth: auth,
             eventProvider: eventProvider,
-            appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
+            appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
+            logLevel: logLevel.asBECLogLevel
         )
         
         // Log enhanced configuration
@@ -118,11 +137,11 @@ public final class PaymentClient {
 
     /// Inicializa (uma vez) o singleton
     @discardableResult
-    public static func getInstance(baseUrl: String) -> PaymentClient {
+    public static func getInstance(baseUrl: String, logLevel: LogLevel = .info) -> PaymentClient {
         if let i = instance { return i }
         // Call configuration here
         PaymentClient.configureLogging()
-        let i = PaymentClient(baseUrl: baseUrl)
+        let i = PaymentClient(baseUrl: baseUrl, logLevel: logLevel)
         instance = i
         
         // Give CrashReporterKit time to fully register handlers with the system
@@ -147,23 +166,25 @@ public final class PaymentClient {
         baseUrl: String,
         dynatraceEndpoint: URL? = nil,
         dynatraceToken: String? = nil,
-        eventProvider: String? = nil
+        eventProvider: String? = nil,
+        logLevel: LogLevel = .info
     ) -> PaymentClient {
         if let i = instance { return i }
-        
+
         // Configure logging
         PaymentClient.configureLogging()
-        
+
         // Create instance with enhanced configuration
-        let i = PaymentClient(baseUrl: baseUrl)
-        
+        let i = PaymentClient(baseUrl: baseUrl, logLevel: logLevel)
+
         // Override with enhanced configuration if custom parameters provided
         if let endpoint = dynatraceEndpoint,
            let token = dynatraceToken {
             i.configureBusinessEventsWithDeviceMetadata(
                 endpoint: endpoint,
                 auth: .apiToken(token),
-                eventProvider: eventProvider  // Can be nil, will use default
+                eventProvider: eventProvider,
+                logLevel: logLevel
             )
         }
         
@@ -177,14 +198,14 @@ public final class PaymentClient {
         return i
     }
 
-    private init(baseUrl: String) {
+    private init(baseUrl: String, logLevel: LogLevel = .info) {
         self.baseUrl = baseUrl
-        
+
         // Configure services with enhanced device metadata collection using default values
         configureBusinessEventsWithDeviceMetadata(
-            endpoint: bizEventsURL, 
-            auth: .apiToken(bizEventToken)
-            // eventProvider and defaultEventType will use default values from BusinessEventsClient
+            endpoint: bizEventsURL,
+            auth: .apiToken(bizEventToken),
+            logLevel: logLevel
         )
         CrashReporterKit.shared.enable()
         

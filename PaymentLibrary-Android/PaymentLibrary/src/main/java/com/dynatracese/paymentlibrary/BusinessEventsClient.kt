@@ -68,9 +68,9 @@ object BusinessEventsClient {
     }
 
     // Session management
-    private var hasSessionStarted = false
+    @Volatile private var hasSessionStarted = false
     val sessionId: String = UUID.randomUUID().toString() // Exposed for crash reporting
-    private var sessionActionId: UUID? = null
+    @Volatile private var sessionActionId: UUID? = null
 
     // Log level configuration - defaults to INFO
     private var logLevel: LogLevel = LogLevel.INFO
@@ -182,7 +182,8 @@ object BusinessEventsClient {
     fun configureFromSecrets(
         context: Context,
         eventProvider: String,
-        appVersion: String? = null
+        appVersion: String? = null,
+        logLevel: LogLevel = LogLevel.INFO
     ) {
         // --- FIX: Use DeviceMetadataCollector as intended ---
         val deviceMetadata = DeviceMetadataCollector.collectMetadata(context)
@@ -198,8 +199,8 @@ object BusinessEventsClient {
             eventProvider = eventProvider,
             appVersion = appVersion,
             deviceInfo = deviceInfo,
-            deviceMetadata = deviceMetadata
-            // logLevel uses default from Config (INFO)
+            deviceMetadata = deviceMetadata,
+            logLevel = logLevel
         )
 
         configure(config)
@@ -301,8 +302,8 @@ object BusinessEventsClient {
         data["action.status"] = JsonPrimitive(status)
         error?.let { data["action.error"] = JsonPrimitive(it) }
         data["action.durationMs"] = JsonPrimitive(durationMs)
-        data["action.starttime"] = JsonPrimitive(DateFormatter.dtTime.format(ctx.startedAt))
-        data["action.endtime"] = JsonPrimitive(DateFormatter.dtTime.format(finishedAt))
+        data["action.starttime"] = JsonPrimitive(DateFormatter.format(ctx.startedAt))
+        data["action.endtime"] = JsonPrimitive(DateFormatter.format(finishedAt))
         data["session.id"] = JsonPrimitive(sessionId)  // Add session.id to every action
         config?.appVersion?.let { data["app.version"] = JsonPrimitive(it) }
         config?.deviceInfo?.let { data["device.info"] = JsonPrimitive(it) }
@@ -334,8 +335,7 @@ object BusinessEventsClient {
             id = UUID.randomUUID().toString(),
             source = eventProvider,
             type = eventType,
-            time = DateFormatter.dtTime.format(finishedAt),
-            traceparent = null,
+            time = DateFormatter.format(finishedAt),
             data = JsonObject(data)
         )
 
@@ -355,7 +355,6 @@ object BusinessEventsClient {
         val sendEndTime = System.currentTimeMillis()
         val sendDuration = sendEndTime - sendStartTime
         logD("BusinessEventsClient-endAction", "⏱️ [${ctx.name}] AFTER send() - timestamp: $sendEndTime, duration: ${sendDuration}ms")
-        logD("BusinessEventsClient", "Executo end action")
     }
 
     // Convenience wrapper that auto-finalizes with automatic parent-child relationship tracking
@@ -377,7 +376,6 @@ object BusinessEventsClient {
                 val result = body()
                 try {
                     endAction(id, status = "SUCCESS")
-                    logD("BusinessEventsClient", "Action name: $name")
                 } catch (e: ClientError.UnknownAction) {
                     // Action was already finished by timeout - this is expected
                     logD("BusinessEventsClient", "Action '$name' was already finished (likely by timeout)")
@@ -462,8 +460,7 @@ object BusinessEventsClient {
             id = UUID.randomUUID().toString(),
             source = eventProvider,
             type = eventType,
-            time = DateFormatter.dtTime.format(now),
-            traceparent = null,
+            time = DateFormatter.format(now),
             data = JsonObject(data)
         )
         sendBusinessEventToDynatrace(event, cfg)
@@ -532,6 +529,8 @@ object BusinessEventsClient {
                     throw ClientError.BadResponse(response.code, responseString)
                 }
             } catch (error: Exception) {
+                // Don't retry our own ClientError.BadResponse — 4xx payloads won't improve on retry
+                if (error is ClientError) throw error
                 if (attempt == config.maxRetryAttempts - 1) {
                     logE("BusinessEventsClient", "❌ Send failed permanently (Network error) after ${config.maxRetryAttempts} attempts: $error")
                     throw ClientError.BadResponse(0, error.message)
@@ -567,7 +566,7 @@ object BusinessEventsClient {
                 // Add session-specific attributes
                 val attributes = deviceAttributes.toMutableMap()
                 attributes["session.id"] = sessionId
-                attributes["session.start_time"] = DateFormatter.dtTime.format(Date())
+                attributes["session.start_time"] = DateFormatter.format(Date())
                 attributes["event.provider"] = cfg.eventProvider
                 attributes["session.initialization_type"] = "business_events_configured"
                 
@@ -622,7 +621,7 @@ object BusinessEventsClient {
                 // Add session-specific attributes
                 val attributes = deviceAttributes.toMutableMap()
                 attributes["session.id"] = sessionId
-                attributes["session.start_time"] = DateFormatter.dtTime.format(Date())
+                attributes["session.start_time"] = DateFormatter.format(Date())
                 attributes["event.provider"] = cfg.eventProvider
                 attributes["session.initialization_type"] = "business_events_configured"
                 
@@ -682,7 +681,6 @@ data class CloudEvent(
     val source: String,
     val type: String,
     val time: String,
-    val traceparent: String?,  // Not used - correlation via action.id instead
     val data: JsonObject
 )
 
@@ -724,23 +722,28 @@ private class InMemoryStore {
 
 // MARK: - Helpers
 
-private fun Map<String, Any>.toJsonElementMap(): Map<String, JsonElement> {
-    return this.mapValues { (_, value) ->
-        when (value) {
-            is String -> JsonPrimitive(value)
-            is Number -> JsonPrimitive(value)
-            is Boolean -> JsonPrimitive(value)
-            else -> JsonPrimitive(value.toString())
-        }
-    }
+private fun Map<String, Any>.toJsonElementMap(): Map<String, JsonElement> =
+    mapValues { (_, value) -> value.toJsonElement() }
+
+private fun Any.toJsonElement(): JsonElement = when (this) {
+    is String -> JsonPrimitive(this)
+    is Number -> JsonPrimitive(this)
+    is Boolean -> JsonPrimitive(this)
+    is List<*> -> kotlinx.serialization.json.JsonArray(filterNotNull().map { it.toJsonElement() })
+    is Map<*, *> -> JsonObject(entries.associate { (k, v) ->
+        k.toString() to (v?.toJsonElement() ?: JsonPrimitive(null as String?))
+    })
+    else -> JsonPrimitive(this.toString())
 }
 
 private object DateFormatter {
-    val dtTime: SimpleDateFormat by lazy {
+    // ThreadLocal gives each thread its own SimpleDateFormat instance — SimpleDateFormat is NOT thread-safe
+    private val threadLocal = ThreadLocal.withInitial<SimpleDateFormat> {
         SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
             timeZone = TimeZone.getTimeZone("UTC")
         }
     }
+    fun format(date: Date): String = threadLocal.get()!!.format(date)
 }
 
 // MARK: - Example Usage

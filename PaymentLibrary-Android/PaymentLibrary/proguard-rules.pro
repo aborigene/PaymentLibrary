@@ -17,6 +17,20 @@
     *;
 }
 
+-keep public class com.dynatracese.paymentlibrary.DeviceMetadataCollector {
+    public *;
+}
+-keep public class com.dynatracese.paymentlibrary.DeviceMetadataCollector$** {
+    *;
+}
+
+-keep class com.dynatracese.paymentlibrary.DynatraceLogger {
+    public *;
+}
+-keep class com.dynatracese.paymentlibrary.DynatraceLogger$** {
+    *;
+}
+
 -keep public class com.dynatracese.paymentlibrary.PaymentCrashHandler {
     public *;
 }
@@ -32,6 +46,16 @@
 # Keep data classes used in public API (for serialization)
 -keepclassmembers class * {
     public <init>(...);
+}
+
+# Keep Kotlin synthetic default-parameter constructors (generated for classes with default params).
+# These constructors take DefaultConstructorMarker as the last parameter and are used by the
+# Kotlin compiler to support callers that omit parameters with defaults. R8 strips them as
+# non-public because they don't match "public <init>(...)". Keeping all constructors (including
+# package-private synthetic ones) in this package is needed for testReleaseUnitTest to work.
+-keep class kotlin.jvm.internal.DefaultConstructorMarker
+-keepclassmembers class com.dynatracese.paymentlibrary.** {
+    <init>(...);
 }
 
 # Keep Kotlin coroutines

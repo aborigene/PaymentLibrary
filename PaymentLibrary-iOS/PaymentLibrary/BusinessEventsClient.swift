@@ -56,8 +56,8 @@ public final class BusinessEventsClient {
         }
     }
     
-    // Log level configuration - defaults to DEBUG
-    private var logLevel: LogLevel = .debug
+    // Log level configuration - defaults to INFO
+    private var logLevel: LogLevel = .info
 
     public enum Auth {
         case apiToken(String)      // "Authorization: Api-Token <token>"
@@ -83,7 +83,7 @@ public final class BusinessEventsClient {
                     deviceInfo: String? = nil,
                     deviceMetadata: DeviceMetadataCollector.DeviceMetadata? = nil,
                     actionTimeoutSeconds: TimeInterval = 30.0,
-                    logLevel: LogLevel = .debug) {
+                    logLevel: LogLevel = .info) {
             self.endpoint = endpoint
             self.auth = auth
             self.eventProvider = eventProvider
@@ -142,9 +142,11 @@ public final class BusinessEventsClient {
         
         // Log device metadata for debugging
         if let metadata = config.deviceMetadata {
-            logD("Device Metadata Collected:")
-            logD("OS: %@ - Device: %@", metadata.osVersion, metadata.deviceModel)
-            logD("Network: %@ - Carrier: %@", metadata.networkType, metadata.carrierName ?? "unknown")
+            logI("Device Metadata Collected: OS=%@ Device=%@ Network=%@ Carrier=%@",
+                 metadata.osVersion,
+                 metadata.deviceModel,
+                 metadata.networkType,
+                 metadata.carrierName ?? "unknown")
         }
         
         // Automatically create session_started event on first configuration (synchronously)
@@ -189,12 +191,13 @@ public final class BusinessEventsClient {
         endpoint: URL,
         auth: Auth,
         eventProvider: String? = nil,
-        appVersion: String? = nil
+        appVersion: String? = nil,
+        logLevel: LogLevel = .info
     ) {
         // Collect comprehensive device metadata
         let deviceMetadata = DeviceMetadataCollector.collectMetadata()
         let deviceInfo = DeviceMetadataCollector.formatDeviceInfo(deviceMetadata)
-        
+
         let config = Config(
             endpoint: endpoint,
             auth: auth,
@@ -202,9 +205,10 @@ public final class BusinessEventsClient {
             defaultEventType: BusinessEventsClient.defaultEventType,
             appVersion: appVersion,
             deviceInfo: deviceInfo,
-            deviceMetadata: deviceMetadata
+            deviceMetadata: deviceMetadata,
+            logLevel: logLevel
         )
-        
+
         configure(config)
     }
 
@@ -251,36 +255,45 @@ public final class BusinessEventsClient {
         // Special case: don't use session action as parent for session_started event itself
         let effectiveParentId = opts.parentActionId ?? Self.currentActionId ?? (opts.name == "session_started" ? nil : sessionActionId)
         
-        var ctx = ActionContext(
-            id: UUID(),
-            name: opts.name,
-            startedAt: now,
-            attributes: enhancedAttributes, // Use enhanced attributes with fresh metadata
-            parentActionId: effectiveParentId, // Use the resolved effective parent ID
-            eventType: cfg.defaultEventType,
-            timeoutTimer: nil
-        )
-        
-        // Schedule timeout timer
-        let timer = Timer.scheduledTimer(withTimeInterval: cfg.actionTimeoutSeconds, repeats: false) { [weak self] _ in
+        // Pre-determine the ID so the timeout task can reference it before the struct is created
+        let ctxId = UUID()
+        let timeoutSeconds = cfg.actionTimeoutSeconds
+        let actionName = opts.name
+
+        let timeoutTask = Task { [weak self] in
             guard let self = self else { return }
-            Task {
+            do {
+                try await Task.sleep(nanoseconds: UInt64(timeoutSeconds * 1_000_000_000))
                 do {
-                    try await self.endAction(ctx.id, status: "TIMEOUT", error: "Action exceeded timeout of \(cfg.actionTimeoutSeconds)s")
-                    self.logI("Action '%@' auto-finished with TIMEOUT status", ctx.name)
+                    try await self.endAction(ctxId, status: "TIMEOUT", error: "Action exceeded timeout of \(timeoutSeconds)s")
+                    self.logI("Action '%@' auto-finished with TIMEOUT status", actionName)
                 } catch ClientError.unknownAction {
-                    // Action was already finished by user code - this is expected and not an error
-                    self.logD("Action '%@' was already finished when timeout fired", ctx.name)
+                    // Action was already finished by user code — expected, not an error
+                    self.logD("Action '%@' was already finished when timeout fired", actionName)
                 } catch {
-                    self.logE("Failed to auto-finish timed out action '%@': %@", ctx.name, error.localizedDescription)
+                    self.logE("Failed to auto-finish timed out action '%@': %@", actionName, error.localizedDescription)
                 }
+            } catch {
+                // CancellationError: Task.sleep was cancelled because the action ended normally
             }
         }
-        ctx.timeoutTimer = timer
-        
+
+        let ctx = ActionContext(
+            id: ctxId,
+            name: opts.name,
+            startedAt: now,
+            attributes: enhancedAttributes,
+            parentActionId: effectiveParentId,
+            eventType: cfg.defaultEventType,
+            timeoutTimer: timeoutTask
+        )
+
         store.insert(ctx)
         
-        logD("Action '%@' started with fresh device metadata (%d attributes), timeout: %.1fs", ctx.name, enhancedAttributes.count, cfg.actionTimeoutSeconds)
+        logI("[BusinessAPIScheduler] - Action '%@' started | id=%@ | attributes=(%d) | timeout=%.1fs",
+             ctx.name, ctx.id.uuidString, enhancedAttributes.count, cfg.actionTimeoutSeconds)
+        logD("[BusinessAPIScheduler] - Action '%@' attribute keys: [%@]",
+             ctx.name, enhancedAttributes.keys.sorted().joined(separator: ", "))
         return ctx.id
     }
 
@@ -293,7 +306,7 @@ public final class BusinessEventsClient {
         guard var ctx = store.remove(id: actionId) else { throw ClientError.unknownAction }
         
         // Cancel timeout timer since action is ending normally
-        ctx.timeoutTimer?.invalidate()
+        ctx.timeoutTimer?.cancel()
         ctx.timeoutTimer = nil
 
         let finishedAt = Date()
@@ -324,8 +337,11 @@ public final class BusinessEventsClient {
             data: data
         )
 
+        logI("[BusinessAPIScheduler] - Sending event | action='%@' | id=%@ | status=%@ | durationMs=%d | type=%@ | source=%@",
+             ctx.name, event.id, status, durationMs, event.type, event.source)
+        logD("[BusinessAPIScheduler] - Sending event payload: %@", (try? String(data: JSONEncoder.dynatrace.encode(event), encoding: .utf8)) ?? "")
         try await send(event: event, config: cfg)
-        logD("Executo end action")
+        logI("[BusinessAPIScheduler] - Executing end action | action='%@' | id=%@ | status=%@", ctx.name, ctx.id.uuidString, status)
     }
     
     // Synchronous version of endAction for crash scenarios where async context is unreliable
@@ -364,8 +380,10 @@ public final class BusinessEventsClient {
             data: data
         )
 
+        logI("[BusinessAPIScheduler] - Sending event (sync) | action='%@' | id=%@ | status=%@ | durationMs=%d",
+             ctx.name, event.id, status, durationMs)
         try sendSync(event: event, config: cfg)
-        os_log("Action ended synchronously with status: %@", log: OSLog.default, type: .info, status)
+        logI("[BusinessAPIScheduler] - Executing end action (sync) | action='%@' | id=%@ | status=%@", ctx.name, ctx.id.uuidString, status)
     }
     
 
@@ -385,7 +403,6 @@ public final class BusinessEventsClient {
                 let result = try await body()
                 do {
                     try await endAction(id, status: "SUCCESS")
-                    logD("Action name: %@", name)
                 } catch ClientError.unknownAction {
                     // Action was already finished by timeout - this is expected
                     logD("Action '%@' was already finished (likely by timeout)", name)
@@ -684,7 +701,8 @@ public final class BusinessEventsClient {
         public let attributes: [String: AnyEncodable]
         public let parentActionId: UUID?
         public let eventType: String
-        var timeoutTimer: Timer?
+        // Task-based timeout; internal so it's invisible to library consumers
+        var timeoutTimer: Task<Void, Never>?
     }
 
     private var config: Config?
@@ -702,13 +720,47 @@ public final class BusinessEventsClient {
         request.setValue("application/cloudevent+json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder.dynatrace.encode(event)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
-        let code = (response as? HTTPURLResponse)?.statusCode ?? -1
-        // 202 means accepted; 400 can be partial success per API docs, but here we treat as error to re-evaluate payload
-        guard code == 202 else {
-            // Try to surface server-provided error content for easier debugging
-            let _ = String(data: data, encoding: .utf8) ?? ""
-            throw ClientError.badResponse(code)
+        let maxRetries = 3
+        let initialDelay = 1.0
+
+        for attempt in 0..<maxRetries {
+            do {
+                let (data, response) = try await URLSession.shared.data(for: request)
+                let code = (response as? HTTPURLResponse)?.statusCode ?? -1
+
+                if code == 202 {
+                    logI("[BusinessAPIScheduler] - business send with success | statusCode=%d", code)
+                    return
+                }
+
+                let body = String(data: data, encoding: .utf8) ?? ""
+
+                // 5xx and 429 are transient — retry. 4xx (including 400) are payload errors — never retry.
+                if (code >= 500 || code == 429) && attempt < maxRetries - 1 {
+                    let delay = initialDelay * pow(2.0, Double(attempt))
+                    logW("[BusinessAPIScheduler] - business send failed (retriable) | statusCode=%d | attempt=%d | retry in %.1fs",
+                         code, attempt + 1, delay)
+                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                    continue
+                }
+
+                logI("[BusinessAPIScheduler] - business send failed | statusCode=%d", code)
+                logD("[BusinessAPIScheduler] - business send response body: %@", body)
+                throw ClientError.badResponse(code)
+
+            } catch let clientError as ClientError {
+                throw clientError  // Never retry our own typed errors (e.g. badResponse from payload issue)
+            } catch {
+                if attempt < maxRetries - 1 {
+                    let delay = initialDelay * pow(2.0, Double(attempt))
+                    logW("[BusinessAPIScheduler] - business send network error | attempt=%d | retry in %.1fs | error=%@",
+                         attempt + 1, delay, error.localizedDescription)
+                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                } else {
+                    logE("[BusinessAPIScheduler] - business send network error (final) | error=%@", error.localizedDescription)
+                    throw error
+                }
+            }
         }
     }
     
@@ -948,6 +1000,21 @@ private struct CloudEvent: Encodable {
     let time: String?                // RFC3339/ISO8601
     let traceparent: String?         // Not used - correlation via action.id instead
     let data: [String: AnyEncodable] // business payload
+
+    private enum CodingKeys: String, CodingKey {
+        case specversion, id, source, type, time, traceparent, data
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(specversion, forKey: .specversion)
+        try c.encode(id, forKey: .id)
+        try c.encode(source, forKey: .source)
+        try c.encode(type, forKey: .type)
+        try c.encodeIfPresent(time, forKey: .time)
+        try c.encodeIfPresent(traceparent, forKey: .traceparent) // nil → omitted entirely
+        try c.encode(data, forKey: .data)
+    }
 }
 
 // MARK: - In-memory store (thread-safe)
@@ -957,13 +1024,13 @@ private final class InMemoryStore {
     private let q = DispatchQueue(label: "biz.store")
     public func insert(_ ctx: BusinessEventsClient.ActionContext) { q.sync { dict[ctx.id] = ctx } }
     public func lookup(id: UUID) -> BusinessEventsClient.ActionContext? { q.sync { dict[id] } }
-    public func remove(id: UUID) -> BusinessEventsClient.ActionContext? { 
-        q.sync { 
+    public func remove(id: UUID) -> BusinessEventsClient.ActionContext? {
+        q.sync {
             guard var ctx = dict.removeValue(forKey: id) else { return nil }
-            ctx.timeoutTimer?.invalidate()
+            ctx.timeoutTimer?.cancel()
             ctx.timeoutTimer = nil
             return ctx
-        } 
+        }
     }
     public func getLastActionContext() -> BusinessEventsClient.ActionContext? {
         q.sync { dict.values.sorted { $0.startedAt > $1.startedAt }.first }

@@ -28,19 +28,22 @@ PaymentLibrary.framework/
 
 ## Installation
 
-### Option 1: Framework Integration (Recommended)
+### Option 1: xcframework Integration (Recommended)
 
-1. **Build the framework:**
+1. **Build the xcframework:**
    ```bash
    cd PaymentLibrary-iOS
    ./build.sh
    ```
-   This generates `PaymentLibrary.framework` in the `output/` directory.
+   This generates `output/PaymentLibrary.xcframework` — a universal framework containing both device (arm64) and simulator (arm64 + x86_64) slices.
 
 2. **Add to your Xcode project:**
-   - Drag and drop `PaymentLibrary.framework` into your Xcode project
-   - Select **"Embed & Sign"** in the target's "Frameworks, Libraries, and Embedded Content"
-   - Verify it appears in both the General tab and "Link Binary With Libraries"
+   - Open Finder and navigate to `PaymentLibrary-iOS/output/`
+   - In Xcode, select your app target → **General** → scroll to **Frameworks, Libraries, and Embedded Content**
+   - Drag `PaymentLibrary.xcframework` from Finder **directly into that list**
+   - Confirm the embed option is set to **Embed & Sign**
+
+   > **Note:** Drag into the "Frameworks, Libraries, and Embedded Content" list specifically — not into the project navigator. The library is a dynamic framework and must be embedded to be found at runtime.
 
 3. **Import in your Swift files:**
    ```swift
@@ -137,38 +140,31 @@ PaymentClient.getInstanceWithEnhancedMetadata(
 
 ### Log Level Configuration
 
-Control logging verbosity with configurable log levels:
+Pass `logLevel` directly to the factory method — no need to import `BusinessEventsClient`:
 
-**Available Log Levels:**
-- `.verbose` - All logs including very detailed debug information
-- `.debug` - Debug information and above
-- `.info` - Informational messages and above (default, recommended for production)
-- `.warn` - Warnings and errors only
-- `.error` - Error messages only
-- `.none` - No logging
-
-**Usage:**
 ```swift
-BusinessEventsClient.shared.configure(BusinessEventsClient.Config(
-    endpoint: URL(string: "https://YOUR_TENANT.live.dynatrace.com/api/v2/bizevents/ingest")!,
-    auth: .apiToken("dt0c01.YOUR_BIZEVENTS_TOKEN"),
-    eventProvider: "com.yourbank.ios.app",
-    defaultEventType: "com.yourbank.user.action",
-    logLevel: .info  // Set desired log level (default: .info)
-))
+// Production (default)
+PaymentClient.getInstanceWithEnhancedMetadata(
+    baseUrl: "https://api.yourbank.com",
+    logLevel: .info
+)
+
+// Troubleshooting / development
+PaymentClient.getInstanceWithEnhancedMetadata(
+    baseUrl: "https://api.yourbank.com",
+    logLevel: .debug
+)
 ```
 
-**Best Practices:**
-- **Production**: Use `.info` or `.warn` for cleaner logs
-- **Development**: Use `.debug` or `.verbose` for troubleshooting
-- **Testing**: Use `.info` to verify key operations without noise
+**Available levels:**
 
-The log level affects all internal logging from BusinessEventsClient, including:
-- Action start/end notifications
-- Timeout handling
-- Event serialization
-- Device metadata collection
-- Stack trace filtering
+| Level | When to use |
+|---|---|
+| `.debug` | Development and troubleshooting — shows full JSON payloads, attribute lists, HTTP response bodies |
+| `.info` | **Production default** — action summaries, HTTP status codes, device metadata |
+| `.warn` | Retry attempts and recoverable errors only |
+| `.error` | Failures only |
+| `.none` | Silent |
 
 ### Manual Configuration
 
@@ -423,6 +419,16 @@ For detailed integration examples and advanced usage, see:
 - Example code in `examples/` directory
 
 ## Version History
+
+### Version 1.1.0
+**Reliability fixes targeting sporadic HTTP 400 errors on `/api/v2/bizevents/ingest`:**
+
+- **UIKit main-thread safety** — `UIDevice.current` and `UIScreen.main` are now always accessed on the main thread. Off-thread access previously returned garbage `UInt64.max` values for memory/screen properties, which exceed JSON double-precision limits and caused 400 responses.
+- **Large number precision** — All `UInt64` memory and storage values are clamped to `Int.max` before serialization, preventing IEEE 754 double-precision overflow in JSON.
+- **`traceparent` field removed from payload** — The field was always `null` and was being serialized as a JSON `null`, which the Dynatrace API rejects. It is now fully omitted from the CloudEvent envelope.
+- **Timeout timer fixed** — `Timer.scheduledTimer` never fires in Swift `async Task` contexts (no RunLoop). Replaced with `Task.sleep` so action timeouts work correctly on background threads.
+- **Retry logic** — `send()` now retries up to 3 times with exponential backoff for 5xx/429 errors. 4xx errors (including 400) are **never retried** — retrying a malformed payload only amplifies the error rate.
+- **`logLevel` exposed on `PaymentClient`** — Pass `.debug` at init time to enable full payload and HTTP response logging for troubleshooting. Default remains `.info` (production-safe).
 
 ### Version 1.0.0
 - Initial release with payment processing

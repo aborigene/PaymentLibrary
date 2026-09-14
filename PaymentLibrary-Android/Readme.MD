@@ -33,20 +33,38 @@ import com.dynatracese.paymentlibrary.PaymentCallback
 import com.dynatracese.paymentlibrary.PaymentClient
 ```
 
-##### Initialization (Updated in v1.0+)
+##### Initialization (Updated in v1.1+)
 
-**New Configuration-Based Initialization:**
-
-The PaymentClient now requires configuration for proper Dynatrace integration and automatic version tracking:
+**Configuration-Based Initialization:**
 
 ```kotlin
+// Production
 val paymentClient = PaymentClient.getInstance(
     config = PaymentClient.Config(
-        paymentBaseUrl = "TEST_ONLY"
+        paymentBaseUrl = "https://api.yourbank.com"
+    ),
+    context = this
+)
+
+// Development / troubleshooting — enables full payload and HTTP response logging
+val paymentClient = PaymentClient.getInstance(
+    config = PaymentClient.Config(
+        paymentBaseUrl = "TEST_ONLY",
+        logLevel = PaymentClient.LogLevel.DEBUG
     ),
     context = this
 )
 ```
+
+**Log levels:**
+
+| Level | When to use |
+|---|---|
+| `DEBUG` | Development — full JSON payloads, attribute details, HTTP response bodies |
+| `INFO` | **Production default** — action summaries and HTTP status codes |
+| `WARN` | Retry attempts and recoverable errors only |
+| `ERROR` | Failures only |
+| `NONE` | Silent |
 
 **Important Notes:**
 - `appVersion` is **automatically collected** from the library's `BuildConfig.VERSION_NAME`
@@ -110,3 +128,18 @@ The library version (`BuildConfig.VERSION_NAME`) is automatically collected and 
 - No risk of version mismatch between app and library
 
 For detailed integration with your Banking App, see [BANKING_APP_INTEGRATION_GUIDE.md](BANKING_APP_INTEGRATION_GUIDE.md).
+
+### Version History
+
+#### Version 1.1.0
+**Reliability fixes targeting sporadic HTTP 400 errors on `/api/v2/bizevents/ingest`:**
+
+- **Thread-safe date formatting** — `SimpleDateFormat` is not thread-safe in Java. Each thread now gets its own instance via `ThreadLocal`, eliminating the main root cause of malformed timestamps that triggered 400 responses under concurrent load.
+- **`traceparent` field removed from payload** — The field was always `null` and serialized as JSON `null`, which the Dynatrace API rejects. It is now fully omitted from the CloudEvent envelope.
+- **400 errors no longer retried** — The retry loop previously re-submitted 400 payloads, amplifying the error rate. Errors from the API (4xx) now fail immediately; only 5xx and 429 (transient server errors) are retried with exponential backoff.
+- **Proper `List` serialization** — Attribute values that are `List<*>` were previously serialized using `.toString()`, producing invalid JSON strings like `[a, b, c]`. They are now correctly serialized as JSON arrays.
+- **Thread visibility** — `@Volatile` added to `hasSessionStarted` and `sessionActionId` to ensure state changes are visible across threads immediately.
+- **`logLevel` exposed on `PaymentClient`** — Pass `logLevel = PaymentClient.LogLevel.DEBUG` at init time for full payload and HTTP response logging during troubleshooting.
+
+#### Version 1.0.0
+- Initial release with payment processing and Dynatrace business events integration

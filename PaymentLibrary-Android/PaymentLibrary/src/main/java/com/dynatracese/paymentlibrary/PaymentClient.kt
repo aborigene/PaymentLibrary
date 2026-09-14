@@ -55,15 +55,20 @@ class PaymentClient private constructor(
     private val context: Context
 ) {
 
+    enum class LogLevel { VERBOSE, DEBUG, INFO, WARN, ERROR, NONE }
+
     /**
      * Unified configuration for the PaymentClient
      * @param paymentBaseUrl The base URL for the payment processing backend
-     * 
+     * @param logLevel Controls library log verbosity. Use DEBUG for troubleshooting,
+     *                 INFO (default) for production.
+     *
      * Note: Library version (appVersion) is automatically collected from BuildConfig
      * and cannot be overridden to ensure proper crash deobfuscation in Dynatrace.
      */
     data class Config(
-        val paymentBaseUrl: String
+        val paymentBaseUrl: String,
+        val logLevel: LogLevel = LogLevel.INFO
     )
 
     companion object {
@@ -95,7 +100,15 @@ class PaymentClient private constructor(
         BusinessEventsClient.configureFromSecrets(
             context = context,
             eventProvider = "Android App", // Internal default, not customizable
-            appVersion = libraryVersion // Always use library version, not app version
+            appVersion = libraryVersion, // Always use library version, not app version
+            logLevel = when (config.logLevel) {
+                LogLevel.VERBOSE -> BusinessEventsClient.LogLevel.VERBOSE
+                LogLevel.DEBUG   -> BusinessEventsClient.LogLevel.DEBUG
+                LogLevel.INFO    -> BusinessEventsClient.LogLevel.INFO
+                LogLevel.WARN    -> BusinessEventsClient.LogLevel.WARN
+                LogLevel.ERROR   -> BusinessEventsClient.LogLevel.ERROR
+                LogLevel.NONE    -> BusinessEventsClient.LogLevel.NONE
+            }
         )
 
         // Se a URL for "TEST_ONLY", não inicializa o Retrofit

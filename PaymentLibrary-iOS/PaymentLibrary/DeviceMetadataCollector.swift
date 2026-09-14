@@ -129,25 +129,63 @@ public class DeviceMetadataCollector {
     /// Collect comprehensive device metadata
     /// - Returns: Complete device metadata structure
     public static func collectMetadata() -> DeviceMetadata {
-        let device = UIDevice.current
-        let screen = UIScreen.main
+        // UIKit properties MUST be read from the main thread to avoid undefined behavior
+        // and garbage values (e.g. UInt64.max for memory) when accessed from background threads.
+        var deviceName = ""
+        var systemName = ""
+        var systemVersion = ""
+        var identifierForVendor: String? = nil
+        var screenWidth = 0.0
+        var screenHeight = 0.0
+        var screenScale = 1.0
+        var screenBounds = "0x0"
+        var batteryLevel: Float = -1.0
+        var batteryState = "unknown"
+
+        let gatherUIKitData = {
+            let device = UIDevice.current
+            let screen = UIScreen.main
+            device.isBatteryMonitoringEnabled = true
+            deviceName = device.name
+            systemName = device.systemName
+            systemVersion = device.systemVersion
+            identifierForVendor = device.identifierForVendor?.uuidString
+            screenWidth = Double(screen.bounds.width * screen.scale)
+            screenHeight = Double(screen.bounds.height * screen.scale)
+            screenScale = Double(screen.scale)
+            screenBounds = "\(Int(screen.bounds.width))x\(Int(screen.bounds.height))"
+            batteryLevel = device.batteryLevel
+            switch device.batteryState {
+            case .unplugged: batteryState = "unplugged"
+            case .charging:  batteryState = "charging"
+            case .full:      batteryState = "full"
+            default:         batteryState = "unknown"
+            }
+        }
+
+        if Thread.isMainThread {
+            gatherUIKitData()
+        } else {
+            DispatchQueue.main.sync { gatherUIKitData() }
+        }
+
         let locale = Locale.current
         let timezone = TimeZone.current
         let processInfo = ProcessInfo.processInfo
-        
+
         return DeviceMetadata(
             deviceManufacturer: "Apple",
             deviceModel: getDeviceModel(),
-            deviceName: device.name,
-            deviceSystemName: device.systemName,
-            deviceSystemVersion: device.systemVersion,
-            deviceIdentifierForVendor: device.identifierForVendor?.uuidString,
-            screenWidth: Double(screen.bounds.width * screen.scale),
-            screenHeight: Double(screen.bounds.height * screen.scale),
-            screenScale: Double(screen.scale),
-            screenBounds: "\(Int(screen.bounds.width))x\(Int(screen.bounds.height))",
-            osVersion: "\(device.systemName) \(device.systemVersion)",
-            osVersionCode: device.systemVersion,
+            deviceName: deviceName,
+            deviceSystemName: systemName,
+            deviceSystemVersion: systemVersion,
+            deviceIdentifierForVendor: identifierForVendor,
+            screenWidth: screenWidth,
+            screenHeight: screenHeight,
+            screenScale: screenScale,
+            screenBounds: screenBounds,
+            osVersion: "\(systemName) \(systemVersion)",
+            osVersionCode: systemVersion,
             buildVersion: getBuildVersion(),
             kernelVersion: getKernelVersion(),
             memoryTotal: getMemoryTotal(),
@@ -161,8 +199,8 @@ public class DeviceMetadataCollector {
             deviceIpAddress: getDeviceIPAddress(),
             deviceLocale: locale.identifier,
             deviceTimezone: timezone.identifier,
-            batteryLevel: getBatteryLevel(),
-            batteryState: getBatteryState(),
+            batteryLevel: batteryLevel,
+            batteryState: batteryState,
             isLowPowerModeEnabled: processInfo.isLowPowerModeEnabled,
             processorCount: processInfo.processorCount,
             thermalState: getThermalState()
@@ -179,23 +217,39 @@ public class DeviceMetadataCollector {
     /// Collect only dynamic metadata that changes frequently (optimized for real-time collection)
     /// - Returns: Dynamic device metadata dictionary
     public static func collectDynamicMetadata() -> [String: Any] {
-        let device = UIDevice.current
+        // UIKit battery APIs require main thread access
+        var batteryLevel: Float = -1.0
+        var batteryState = "unknown"
+
+        let gatherBattery = {
+            let device = UIDevice.current
+            device.isBatteryMonitoringEnabled = true
+            batteryLevel = device.batteryLevel
+            switch device.batteryState {
+            case .unplugged: batteryState = "unplugged"
+            case .charging:  batteryState = "charging"
+            case .full:      batteryState = "full"
+            default:         batteryState = "unknown"
+            }
+        }
+
+        if Thread.isMainThread {
+            gatherBattery()
+        } else {
+            DispatchQueue.main.sync { gatherBattery() }
+        }
+
         let processInfo = ProcessInfo.processInfo
-        
+
         return [
-            // Dynamic system information
-            "device.battery_level": getBatteryLevel(),
-            "device.battery_state": getBatteryState(),
+            "device.battery_level": batteryLevel,
+            "device.battery_state": batteryState,
             "device.memory_available": getMemoryAvailable(),
             "device.storage_available": getStorageAvailable(),
             "device.thermal_state": getThermalState(),
             "device.low_power_mode": processInfo.isLowPowerModeEnabled,
-            
-            // Dynamic network information  
             "network.type": getNetworkType(),
             "device.ip_address": getDeviceIPAddress() ?? "unknown",
-            
-            // Collection timestamp
             "metadata.collection_time": ISO8601DateFormatter().string(from: Date()),
             "metadata.collection_type": "dynamic"
         ]
@@ -225,9 +279,9 @@ public class DeviceMetadataCollector {
             "device.screen_scale": metadata.screenScale,
             "device.screen_bounds": metadata.screenBounds,
             
-            // Hardware Specifications
-            "device.memory_total": metadata.memoryTotal,
-            "device.storage_total": metadata.storageTotal,
+            // Hardware Specifications — clamped to Int to prevent JSON double-precision overflow
+            "device.memory_total": safeInt(metadata.memoryTotal),
+            "device.storage_total": safeInt(metadata.storageTotal),
             "device.processor_count": metadata.processorCount,
             
             // Network Capabilities
@@ -255,45 +309,51 @@ public class DeviceMetadataCollector {
             "device.name": metadata.deviceName,
             "device.system_name": metadata.deviceSystemName,
             "device.identifier": metadata.deviceIdentifierForVendor ?? "unknown",
-            
+
             // Operating System (aligned with Android field names)
             "device.os.family": "iOS",
-            "device.os.name": metadata.deviceSystemName, // "iOS", "iPadOS", "tvOS", etc.
+            "device.os.name": metadata.deviceSystemName,
             "device.os.version": metadata.osVersion,
             "device.os.versionCode": metadata.osVersionCode,
             "device.build_version": metadata.buildVersion,
             "device.kernel_version": metadata.kernelVersion,
-            
+
             // Screen Information
             "device.screen_width": metadata.screenWidth,
             "device.screen_height": metadata.screenHeight,
             "device.screen_scale": metadata.screenScale,
             "device.screen_bounds": metadata.screenBounds,
-            
-            // Memory and Storage
-            "device.memory_total": metadata.memoryTotal,
-            "device.memory_available": metadata.memoryAvailable,
-            "device.storage_total": metadata.storageTotal,
-            "device.storage_available": metadata.storageAvailable,
-            
+
+            // Memory and Storage — use Int to guarantee JSON double-precision safety
+            "device.memory_total": safeInt(metadata.memoryTotal),
+            "device.memory_available": safeInt(metadata.memoryAvailable),
+            "device.storage_total": safeInt(metadata.storageTotal),
+            "device.storage_available": safeInt(metadata.storageAvailable),
+
             // Network Information
             "network.type": metadata.networkType,
             "network.carrier": metadata.carrierName ?? "unknown",
             "network.country_code": metadata.carrierCountryCode ?? "unknown",
             "network.isp": metadata.ispName ?? "unknown",
             "network.ip_address": metadata.deviceIpAddress ?? "unknown",
-            
+
             // System Context
             "device.locale": metadata.deviceLocale,
             "device.timezone": metadata.deviceTimezone,
             "device.battery_level": metadata.batteryLevel,
             "device.battery_state": metadata.batteryState,
             "device.low_power_mode": metadata.isLowPowerModeEnabled,
-            
+
             // Performance
             "device.processor_count": metadata.processorCount,
             "device.thermal_state": metadata.thermalState
         ]
+    }
+
+    /// Clamps UInt64 to a safe Int range to prevent JSON double-precision overflow.
+    /// Values like UInt64.max (returned on system errors) would corrupt JSON number precision.
+    private static func safeInt(_ value: UInt64) -> Int {
+        return Int(min(value, UInt64(Int.max)))
     }
     
     // MARK: - Private Helper Methods
@@ -546,30 +606,6 @@ public class DeviceMetadataCollector {
         }
         
         return address
-    }
-    
-    private static func getBatteryLevel() -> Float {
-        let device = UIDevice.current
-        device.isBatteryMonitoringEnabled = true
-        return device.batteryLevel
-    }
-    
-    private static func getBatteryState() -> String {
-        let device = UIDevice.current
-        device.isBatteryMonitoringEnabled = true
-        
-        switch device.batteryState {
-        case .unplugged:
-            return "unplugged"
-        case .charging:
-            return "charging"
-        case .full:
-            return "full"
-        case .unknown:
-            return "unknown"
-        @unknown default:
-            return "unknown"
-        }
     }
     
     private static func getThermalState() -> String {
