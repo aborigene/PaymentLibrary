@@ -18,7 +18,11 @@ local.properties
 **/xcuserdata/
 
 *.xcframework
+PaymentLibrary.xcframework
+
+output/
+out/
+build/
 PaymentLibrary-Android/output
 PaymentLibrary-iOS/output
 PaymentLibrary-iOS/helperScripts/deofuscation/out
-

@@ -1,4 +1,4 @@
-import Foundation
+    import Foundation
 import os.log
 
 // Define a typealias for the `OpenKit` and `Session`
@@ -49,13 +49,36 @@ class PaymentCrashHandler {
 
         os_log("uncaughtException: This is a log from the PaymentCrashHandler....", type: .info)
         
-        // Report the crash using the OpenKit SDK.
+        // Report the crash using BusinessEventsClient with mapping file identifiers
+        let extraAttributes: [String: AnyEncodable] = [
+            "crash.class": AnyEncodable(exception.name.rawValue),
+            "crash.stackTrace": AnyEncodable(stackTrace)
+        ]
+        
+        do {
+            // Use currentActionId if available (crash during an action), otherwise fall back to sessionActionId
+            // This ensures crash is always linked to session_started parent when no action is active
+            let parentId = BusinessEventsClient.currentActionId ?? BusinessEventsClient.shared.sessionActionId
+            
+            try BusinessEventsClient.shared.sendCrashReportSync(
+                parentActionId: parentId,
+                sessionId: BusinessEventsClient.shared.sessionId,
+                error: description,
+                extraAttributes: extraAttributes
+            )
+            os_log("Crash report sent via BusinessEventsClient with mapping identifiers (parent: %@).", type: .info, parentId?.uuidString ?? "none")
+        } catch {
+            os_log("Failed to send crash report: %@", type: .error, error.localizedDescription)
+        }
+        
+        // Also report to OpenKit if session is available for backward compatibility
         if let session = PaymentCrashHandler.crashSession {
             OPReportCrash(session, exception.name.rawValue, description, stackTrace)
-            // Wait for a short duration to ensure the crash report is sent.
-            Thread.sleep(forTimeInterval: 2.0)
-            os_log("Crash report sent via OpenKit.", type: .info)
+            os_log("Crash also reported to OpenKit.", type: .info)
         }
+        
+        // Wait for a short duration to ensure the crash report is sent
+        Thread.sleep(forTimeInterval: 2.0)
 
         // Pass the exception to the original handler if one exists.
         // This ensures other crash reporting tools (like Firebase Crashlytics) still work.

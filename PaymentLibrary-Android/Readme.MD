@@ -27,42 +27,86 @@ For some reason Android Studio may not expose the necessary commands, but they c
 
 Add the entries below to the file where you want to use the library:
 
-```
+```kotlin
 import com.dynatracese.paymentlibrary.CancellationCallback
 import com.dynatracese.paymentlibrary.PaymentCallback
 import com.dynatracese.paymentlibrary.PaymentClient
 ```
 
-And where you need to handle payment, you will create a paymentClient instance:
+##### Initialization (Updated in v1.0+)
 
+**New Configuration-Based Initialization:**
+
+The PaymentClient now requires configuration for proper Dynatrace integration and automatic version tracking:
+
+```kotlin
+val paymentClient = PaymentClient.getInstance(
+    config = PaymentClient.Config(
+        paymentBaseUrl = "TEST_ONLY"
+    ),
+    context = this
+)
 ```
+
+**Important Notes:**
+- `appVersion` is **automatically collected** from the library's `BuildConfig.VERSION_NAME`
+- This ensures correct deobfuscation in Dynatrace by using the library version, not the app version
+- The library version is set internally and cannot be overridden
+
+**Legacy Initialization (Pre-v1.0 - Deprecated):**
+
+```kotlin
+// ❌ OLD WAY - No longer supported
 val paymentClient = PaymentClient("TEST_ONLY", this)
 ```
 
 If you use the "TEST_ONLY" keyword no call will be made to a backend, this is the standard right now as the backend for this library has not been built yet,
 in the future the endpoint for the API should be used and a request to backend should be made to actually make a payment.
 
-To actually receive a payment the block below servers as an example:
+To actually receive a payment the block below serves as an example:
 
-```
+```kotlin
 paymentClient.receivePayment(
-                        amount = amount,
-                        creditCardNumber = creditCard, // Exemplo de dados
-                        vendorName = "Loja de Exemplo",
-                        vendorId = "vendor_02",
-                        callback = object : PaymentCallback {
-                            override fun onPaymentSuccess(transactionId: String) {
-                                // O pagamento foi bem-sucedido.
-                                // Aqui você pode atualizar o saldo, mostrar uma mensagem de sucesso
-                                // ou navegar de volta para a tela inicial.
-                                //Toast.makeText(this@PaymentActivity, "Pagamento realizado! ID: $transactionId", Toast.LENGTH_LONG).show()
-                            }
+    amount = amount,
+    creditCardNumber = creditCard,
+    vendorName = "Loja de Exemplo",
+    vendorId = "vendor_02",
+    callback = object : PaymentCallback {
+        override fun onPaymentSuccess(transactionId: String) {
+            // Payment was successful
+            // Update balance, show success message, or navigate back
+            Toast.makeText(
+                this@PaymentActivity, 
+                "Payment successful! ID: $transactionId", 
+                Toast.LENGTH_LONG
+            ).show()
+        }
 
-                            override fun onPaymentFailure(error: String) {
-                                // Ocorreu um erro no pagamento.
-                                // Exiba uma mensagem de erro para o usuário.
-                                //Toast.makeText(this@PaymentActivity, "Falha no pagamento: $error", Toast.LENGTH_LONG).show()
-                            }
-                        }
-                    )
+        override fun onPaymentFailure(error: String) {
+            // Payment error occurred
+            // Display error message to user
+            Toast.makeText(
+                this@PaymentActivity, 
+                "Payment failed: $error", 
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+)
 ```
+
+### Dynatrace Integration
+
+The library automatically integrates with Dynatrace for:
+- **Business Events Tracking**: All payment operations are tracked as business events
+- **Error Monitoring**: Failures and exceptions are automatically reported
+- **Crash Reporting**: Crash data with proper symbolication support
+- **Custom Logging**: Direct log ingestion to Dynatrace
+
+**Library Version Tracking:**
+The library version (`BuildConfig.VERSION_NAME`) is automatically collected and sent with all telemetry data. This ensures:
+- Correct stack trace deobfuscation in Dynatrace
+- Accurate correlation between crashes and library versions
+- No risk of version mismatch between app and library
+
+For detailed integration with your Banking App, see [BANKING_APP_INTEGRATION_GUIDE.md](BANKING_APP_INTEGRATION_GUIDE.md).

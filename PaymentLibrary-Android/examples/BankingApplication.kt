@@ -44,8 +44,9 @@ class BankingApplication : Application() {
                     auth = BusinessEventsClient.Auth.ApiToken(BIZEVENTS_API_TOKEN),
                     eventProvider = "com.yourbank.banking.android", // Matches iOS pattern
                     defaultEventType = "com.yourbank.user.action",   // Matches iOS pattern
-                    appVersion = getAppVersion(),
-                    deviceInfo = getDeviceInfo()
+                    deviceInfo = getDeviceInfo(),
+                    logLevel = BusinessEventsClient.LogLevel.INFO    // Default: INFO (cleaner logs in production)
+                    // Note: appVersion is automatically collected from library BuildConfig
                 )
             )
             
@@ -74,20 +75,13 @@ class BankingApplication : Application() {
                     endpoint = "https://fallback.dynatrace.com/api/v2/bizevents/ingest",
                     auth = BusinessEventsClient.Auth.ApiToken("fallback-token"),
                     eventProvider = "com.yourbank.banking.android",
-                    defaultEventType = "com.yourbank.user.action"
+                    defaultEventType = "com.yourbank.user.action",
+                    logLevel = BusinessEventsClient.LogLevel.INFO
+                    // Note: appVersion is automatically collected from library BuildConfig
                 )
             )
         } catch (e: Exception) {
             android.util.Log.e("BankingApplication", "Even fallback configuration failed", e)
-        }
-    }
-    
-    private fun getAppVersion(): String {
-        return try {
-            val packageInfo = packageManager.getPackageInfo(packageName, 0)
-            packageInfo.versionName ?: "unknown"
-        } catch (e: Exception) {
-            "unknown"
         }
     }
     
