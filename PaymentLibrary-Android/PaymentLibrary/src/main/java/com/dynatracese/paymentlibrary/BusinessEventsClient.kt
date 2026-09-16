@@ -134,7 +134,7 @@ object BusinessEventsClient {
             createSessionStartedEventSync()
         }
 
-        logI("BusinessEventsClient", "✅ BusinessEventsClient configured and session initialized")
+        logI("BusinessEventsClient", "✅ BusinessEventsClient v${BuildConfig.VERSION_NAME} configured and session initialized")
     }
 
     /**
@@ -204,7 +204,7 @@ object BusinessEventsClient {
         )
 
         configure(config)
-        logI("BusinessEventsClient", "Configured using Secrets.kt for tenant: ${Secrets.dynatraceTenant}")
+        logI("BusinessEventsClient", "✅ BusinessEventsClient v${BuildConfig.VERSION_NAME} configured using Secrets.kt for tenant: ${Secrets.dynatraceTenant}")
     }
 
 
@@ -604,70 +604,39 @@ object BusinessEventsClient {
             logE("BusinessEventsClient", "❌ Cannot create session_started event: BusinessEventsClient not configured")
             return
         }
-        
-        // Mark session as started to prevent duplicate events
+
         hasSessionStarted = true
-        
-        val latch = java.util.concurrent.CountDownLatch(1)
-        var initError: Exception? = null
-        
+
+        // Build session attributes synchronously before launching the coroutine.
+        val deviceAttributes = cfg.deviceMetadata?.let { DeviceMetadataCollector.toEventAttributes(it) } ?: emptyMap()
+        val attributes = deviceAttributes.toMutableMap()
+        attributes["session.id"] = sessionId
+        attributes["session.start_time"] = DateFormatter.format(Date())
+        attributes["event.provider"] = cfg.eventProvider
+        attributes["session.initialization_type"] = "business_events_configured"
+
+        // beginAction() is synchronous (in-memory only, no network). Calling it here — before
+        // launching the coroutine — ensures sessionActionId is set before configure() returns,
+        // so the first user action always has the session as its parent. The actual network send
+        // (endAction) is fire-and-forget: blocking on it with a CountDownLatch caused a 5-second
+        // timeout because the cold SSL handshake to Dynatrace routinely exceeds that limit.
+        val actionId = beginAction(BeginOptions(name = "session_started", attributes = attributes))
+        sessionActionId = actionId
+
         GlobalScope.launch {
             try {
-                // Collect device metadata for session start
-                val deviceAttributes = cfg.deviceMetadata?.let { metadata ->
-                    DeviceMetadataCollector.toEventAttributes(metadata)
-                } ?: emptyMap()
-                
-                // Add session-specific attributes
-                val attributes = deviceAttributes.toMutableMap()
-                attributes["session.id"] = sessionId
-                attributes["session.start_time"] = DateFormatter.format(Date())
-                attributes["event.provider"] = cfg.eventProvider
-                attributes["session.initialization_type"] = "business_events_configured"
-                
-                // Begin session_started event - this will become the parent for all first-level actions
-                val actionId = beginAction(BeginOptions(
-                    name = "session_started",
-                    attributes = attributes
-                ))
-                
-                // Store session action ID to use as default parent for first-level actions
-                sessionActionId = actionId
-                
-                // End session_started event immediately (blocks until sent)
                 endAction(
                     actionId,
                     status = "SUCCESS",
                     extraAttributes = mapOf(
                         "session.duration_ms" to 0,
-                        "session.components_initialized" to listOf(
-                            "BusinessEventsClient",
-                            "DeviceMetadataCollector"
-                        )
+                        "session.components_initialized" to listOf("BusinessEventsClient", "DeviceMetadataCollector")
                     )
                 )
-                
                 logI("BusinessEventsClient", "✅ Session started event sent successfully")
-                
             } catch (e: Exception) {
-                initError = e
-                logE("BusinessEventsClient", "❌ Failed to create session_started event: ${e.message}")
-            } finally {
-                latch.countDown()
+                logE("BusinessEventsClient", "❌ Failed to send session_started event: ${e.message}")
             }
-        }
-        
-        // Block until session_started is sent (with 5 second timeout)
-        try {
-            val completed = latch.await(5, java.util.concurrent.TimeUnit.SECONDS)
-            if (!completed) {
-                logW("BusinessEventsClient", "⚠️ Session initialization timed out after 5 seconds")
-            } else if (initError != null) {
-                logW("BusinessEventsClient", "⚠️ Session initialization completed with error: ${initError?.message}")
-            }
-        } catch (e: InterruptedException) {
-            logE("BusinessEventsClient", "❌ Session initialization interrupted: ${e.message}")
-            Thread.currentThread().interrupt()
         }
     }
 }

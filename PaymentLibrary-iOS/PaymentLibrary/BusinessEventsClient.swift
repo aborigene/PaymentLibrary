@@ -139,7 +139,12 @@ public final class BusinessEventsClient {
     public func configure(_ config: Config) {
         self.config = config
         self.logLevel = config.logLevel
-        
+
+        let frameworkBundle = Bundle(for: BusinessEventsClient.self)
+        let version = frameworkBundle.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
+        let build = frameworkBundle.infoDictionary?["CFBundleVersion"] as? String ?? "unknown"
+        logI("✅ BusinessEventsClient v%@ (build %@) configured", version, build)
+
         // Log device metadata for debugging
         if let metadata = config.deviceMetadata {
             logI("Device Metadata Collected: OS=%@ Device=%@ Network=%@ Carrier=%@",
@@ -148,7 +153,7 @@ public final class BusinessEventsClient {
                  metadata.networkType,
                  metadata.carrierName ?? "unknown")
         }
-        
+
         // Automatically create session_started event on first configuration (synchronously)
         if !hasSessionStarted {
             createSessionStartedEventSync()
@@ -904,89 +909,55 @@ public final class BusinessEventsClient {
             os_log("Cannot create session_started event: BusinessEventsClient not configured", log: OSLog.default, type: .error)
             return
         }
-        
-        // Mark session as started to prevent duplicate events
+
         hasSessionStarted = true
-        
-        let semaphore = DispatchSemaphore(value: 0)
-        var initError: Error?
-        
+
+        // Collect metadata on the calling thread (safe: respects Thread.isMainThread internally).
+        let currentMetadata = DeviceMetadataCollector.collectMetadata()
+        let deviceAttributes = DeviceMetadataCollector.toEventAttributes(currentMetadata)
+
+        var attributes: [String: AnyEncodable] = [:]
+        deviceAttributes.forEach { key, value in
+            switch value {
+            case let v as String:   attributes[key] = AnyEncodable(v)
+            case let v as Int:      attributes[key] = AnyEncodable(v)
+            case let v as Double:   attributes[key] = AnyEncodable(v)
+            case let v as Float:    attributes[key] = AnyEncodable(v)
+            case let v as Bool:     attributes[key] = AnyEncodable(v)
+            case let v as UInt64:   attributes[key] = AnyEncodable(v)
+            default:                attributes[key] = AnyEncodable(String(describing: value))
+            }
+        }
+        attributes["session.id"] = AnyEncodable(sessionId)
+        attributes["session.start_time"] = AnyEncodable(ISO8601DateFormatter().string(from: Date()))
+        attributes["event.provider"] = AnyEncodable(cfg.eventProvider)
+        attributes["session.initialization_type"] = AnyEncodable("business_events_configured")
+
+        // beginAction() is synchronous (in-memory only, no network). Calling it here — before
+        // any Task — ensures sessionActionId is set before configure() returns, so the first
+        // user action always has the session as its parent. The actual network send (endAction)
+        // is fire-and-forget: blocking on it caused a 5-second timeout because the cold
+        // SSL handshake to Dynatrace routinely exceeds that limit.
+        let actionId = beginAction(BeginOptions(name: "session_started", attributes: attributes))
+        sessionActionId = actionId
+
         Task {
             do {
-                // Collect fresh device metadata for session start
-                let currentMetadata = DeviceMetadataCollector.collectMetadata()
-                let deviceAttributes = DeviceMetadataCollector.toEventAttributes(currentMetadata)
-                
-                // Convert to AnyEncodable dictionary
-                var attributes: [String: AnyEncodable] = [:]
-                deviceAttributes.forEach { (key, value) in
-                    switch value {
-                    case let stringValue as String:
-                        attributes[key] = AnyEncodable(stringValue)
-                    case let intValue as Int:
-                        attributes[key] = AnyEncodable(intValue)
-                    case let doubleValue as Double:
-                        attributes[key] = AnyEncodable(doubleValue)
-                    case let floatValue as Float:
-                        attributes[key] = AnyEncodable(floatValue)
-                    case let boolValue as Bool:
-                        attributes[key] = AnyEncodable(boolValue)
-                    case let uint64Value as UInt64:
-                        attributes[key] = AnyEncodable(uint64Value)
-                    default:
-                        attributes[key] = AnyEncodable(String(describing: value))
-                    }
-                }
-                
-                // Add session-specific attributes
-                attributes["session.id"] = AnyEncodable(sessionId)
-                attributes["session.start_time"] = AnyEncodable(ISO8601DateFormatter().string(from: Date()))
-                attributes["event.provider"] = AnyEncodable(cfg.eventProvider)
-                attributes["session.initialization_type"] = AnyEncodable("business_events_configured")
-                
-                // Begin session_started event - this will become the parent for all first-level actions
-                let actionId = beginAction(BeginOptions(
-                    name: "session_started",
-                    attributes: attributes
-                ))
-                
-                // Store session action ID to use as default parent for first-level actions
-                sessionActionId = actionId
-                
-                // End session_started event immediately (blocks until sent)
                 try await endAction(
                     actionId,
                     status: "SUCCESS",
                     extraAttributes: [
                         "session.duration_ms": AnyEncodable(0),
-                        "session.components_initialized": AnyEncodable([
-                            "BusinessEventsClient",
-                            "DeviceMetadataCollector"
-                        ])
+                        "session.components_initialized": AnyEncodable(["BusinessEventsClient", "DeviceMetadataCollector"])
                     ]
                 )
-                
                 os_log("✅ Session started event sent successfully", log: OSLog.default, type: .info)
-                
             } catch {
-                initError = error
-                os_log("❌ Failed to create session_started event: %@", log: OSLog.default, type: .error, error.localizedDescription)
+                os_log("❌ Failed to send session_started event: %@", log: OSLog.default, type: .error, error.localizedDescription)
             }
-            
-            semaphore.signal()
         }
-        
-        // Block until session_started is sent (with 5 second timeout)
-        let timeout = DispatchTime.now() + .seconds(5)
-        let result = semaphore.wait(timeout: timeout)
-        
-        if result == .timedOut {
-            os_log("⚠️ Session initialization timed out after 5 seconds", log: OSLog.default, type: .default)
-        } else if let error = initError {
-            os_log("⚠️ Session initialization completed with error: %@", log: OSLog.default, type: .default, error.localizedDescription)
-        } else {
-            os_log("✅ BusinessEventsClient configured and session initialized", log: OSLog.default, type: .info)
-        }
+
+        os_log("✅ BusinessEventsClient configured and session initialized", log: OSLog.default, type: .info)
     }
 }
 
